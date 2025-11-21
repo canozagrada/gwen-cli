@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-matrix-darker text-matrix-green font-mono;
+  }
+}
+
+@layer components {
+  .matrix-border {
+    @apply border border-matrix-green/30;
+  }
+
+  .matrix-glow {
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+  }
+
+  .matrix-button {
+    @apply px-4 py-2 border border-matrix-green/50 bg-matrix-dark/50 
+           text-matrix-green hover:bg-matrix-green/10 hover:border-matrix-green 
+           transition-all duration-200 matrix-glow;
+  }
+
+  .matrix-panel {
+    @apply bg-matrix-dark/80 border border-matrix-green/20 
+           backdrop-blur-sm;
+  }
+
+  .status-thinking {
+    @apply bg-blue-500/20 text-blue-400 border-blue-500/50;
+  }
+
+  .status-completed {
+    @apply bg-green-500/20 text-green-400 border-green-500/50;
+  }
+
+  .status-warning {
+    @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/50;
+  }
+
+  .status-error {
+    @apply bg-red-500/20 text-red-400 border-red-500/50;
+  }
+
+  .status-idle {
+    @apply bg-gray-500/20 text-gray-400 border-gray-500/50;
+  }
+
+  /* Scrollbar styling */
+  .matrix-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .matrix-scrollbar::-webkit-scrollbar-track {
+    @apply bg-matrix-dark;
+  }
+
+  .matrix-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-matrix-green/30 hover:bg-matrix-green/50;
+  }
+}
