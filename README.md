@@ -6,17 +6,15 @@
 
 ## 🎯 Features
 
-- **Dual-Pane Dashboard**: Live status table showing all agents at a glance
+- **Live Dashboard**: Single-pane status table showing all agents at a glance
 - **Multi-Cloud Monitoring**: Track status across 7 cloud platforms (Cloudflare, AWS, Azure, GCP, GitHub, Datadog, Atlassian)
-- **Scrollable Log Feed**: Detailed logs with full scroll support (↑↓, PgUp/PgDn)
 - **Full-Screen TUI**: Interactive terminal interface powered by Ink
 - **Command Palette**: Press `/` to open a visual command selector
 - **Detail View**: Browse individual agent results with full metrics and output
 - **Backend Integration**: FastAPI backend handles all agent logic and execution
-- **Real-Time Updates**: Dashboard and logs update live during execution
-- **Auto-Refresh**: Automatic status checks every 5 minutes
+- **Auto-Start & Auto-Refresh**: Agents start immediately on launch and refresh every 5 minutes
 - **14-Day History**: Comprehensive incident tracking across services
-- **TRON Aesthetic**: Clean, professional sci-fi theme with neon cyan accents
+- **Clean Aesthetic**: Professional interface with color-coded status indicators
 
 ---
 
@@ -42,9 +40,6 @@ python main.py
 ```
 
 Backend will run on **http://localhost:8000**
-
-### 2. CLI Installation
-
 
 ### 2. CLI Installation
 
@@ -131,23 +126,13 @@ gwen-cli/ (repo root)
 │   │   ├── DashboardTable.tsx   # Agent status table
 │   │   ├── AgentDetailView.tsx  # Full-screen detail view
 │   │   ├── Prompt.tsx           # Command input prompt
-│   │   ├── OutputPanel.tsx      # Log display
 │   │   └── CommandPalette.tsx   # Command selection overlay
 │   ├── core/            # Core logic
 │   │   ├── command-parser.ts    # Command parsing utilities
-│   │   ├── api-client.ts        # Backend API client
-│   │   ├── agent-loader.ts      # Agent discovery and loading
-│   │   └── agent-runner.ts      # Agent execution engine
+│   │   └── api-client.ts        # Backend API client
 │   └── commands/        # Command handlers
-│       ├── handlers.ts          # Local agent commands
 │       └── api-handlers.ts      # Backend API commands
-└── cli-agents/          # Local CLI agent directory
-    ├── example-agent/
-    │   ├── agent.json   # Agent metadata
-    │   └── index.js     # Agent implementation
-    └── service-status/
-        ├── agent.json
-        └── index.js
+└── cli-agents/          # (Legacy - not currently used)
 ```
 
 ---
@@ -158,13 +143,10 @@ gwen-cli/ (repo root)
 
 | Command | Description |
 |---------|-------------|
-| `/run-agent --auto` | Execute all agents and update dashboard |
+| `/start-agents` | Execute all agents and update dashboard |
 | `/run-agent <name>` | Execute a specific agent (e.g., CloudflareAgent) |
-| `/list-agents` | List all available agents |
-| `/status` | Get current status of all agents |
-| `/logs <name>` | Get detailed logs for specific agent |
+| `/list-agents` | List all available agents from backend |
 | `/detail` | Browse agent results in full-screen detail view |
-| `/health` | Check backend health and connection |
 | `/help` | Show help information |
 | `/exit` | Exit GWEN |
 
@@ -172,17 +154,15 @@ gwen-cli/ (repo root)
 
 | CLI Command | Backend API Endpoint |
 |------------|---------------------|
-| `/run-agent --auto` | `POST /retrieve-status` |
+| `/start-agents` | `POST /retrieve-status` |
 | `/run-agent <name>` | `POST /agents/<name>/execute` |
-| `/list-agents` | `GET /` (system info) |
-| `/status` | `GET /agent-status` |
-| `/logs <name>` | `GET /agent-logs/<name>` |
-| `/health` | `GET /health` |
+| `/list-agents` | `GET /` (system info) + `GET /agent-status` |
+| `/detail` | Uses cached results from last execution |
 
 
 ### Dashboard View
 
-The top pane shows a live status table:
+The dashboard shows a live status table:
 
 ```
 ╭─────────────────────────────────────────────────────────╮
@@ -196,12 +176,12 @@ The top pane shows a live status table:
 ╰─────────────────────────────────────────────────────────╯
 ```
 
-### Log Feed View
+### Detail View
 
-The bottom pane shows scrollable detailed logs:
-- **↑↓** - Scroll one line at a time
-- **PgUp/PgDn** - Fast scroll (5 lines)
-- **Home/End** - Jump to top/bottom
+Press `/detail` to browse full agent results:
+- **← →** or **Tab/Shift+Tab** - Navigate between agents
+- **Esc** - Return to main dashboard
+- View execution time, key metrics, messages, and raw output
 
 ### Command Palette
 
@@ -218,24 +198,30 @@ $ gwen
 ◢◤ GWEN SYSTEM ONLINE ◥◣
 Multi-Agent Orchestration Interface · Type / for commands
 
-◆ [20:00:00] [system] GWEN System initialized - Connected to backend
-• [20:00:00] [system] Backend: http://localhost:8000
-• [20:00:00] Type /help for available commands
+[system] GWEN System initialized - Connected to backend
+[system] Backend: http://localhost:8000
+[system] Auto-refresh: Every 5 minutes
+[system] Type /help for available commands
+[system] Starting all agents...
 
-▶ /health
-◆ [20:00:05] [system] Checking backend health...
-✓ [20:00:05] [system] Status: healthy
-• [20:00:05] [system] Orchestrator Running: false
-• [20:00:05] [system] Agents Count: 7
+╭─────────────────────────────────────────────────────────╮
+│ DASHBOARD - Live Agent Status                          │
+│ Agent              Status          Summary              │
+│ ─────────────────────────────────────────────────────── │
+│ CloudflareAgent    ✓ Operational  No incidents over... │
+│ AWSAgent           ✓ Operational  No incidents over... │
+│ AzureAgent         ⚠ Degraded     2 incidents over...  │
+│ GCPAgent           ✓ Operational  No incidents over... │
+│ GitHubAgent        ✓ Operational  No incidents over... │
+│ DatadogAgent       ✓ Operational  No incidents over... │
+│ AtlassianAgent     ✓ Operational  No incidents over... │
+╰─────────────────────────────────────────────────────────╯
 
-▶ /run-agent --auto
-◆ [20:00:10] [system] Triggering all agents via backend...
-• [20:00:10] [system] Execution ID: exec_abc123
-✓ [20:00:15] [system] Overall Status: success
-• [20:00:15] [system] Total Time: 4.23s
-✓ [20:00:15] [CloudflareAgent] CloudflareAgent: completed
-✓ [20:00:15] [AWSAgent] AWSAgent: completed
-...
+▶ /detail
+[Opens full-screen detail view with agent metrics]
+
+▶ /start-agents
+[Manually refresh all agents]
 ```
 
 ---
@@ -346,14 +332,15 @@ npm run dev
 
 Automatically rebuilds on file changes.
 
-### Testing Agents
+### Testing
 
-After building, run GWEN and test your agents:
+After building, run GWEN to see the dashboard:
 
 ```bash
 npm run build
 npm start
-# Then type: /run-agent my-agent
+# Dashboard will auto-populate with agent statuses
+# Use /detail to see full results
 ```
 
 ---
@@ -433,74 +420,30 @@ App (state management, input handling)
 
 ---
 
-## 🤖 Creating Custom Agents
+## 🤖 Backend Agents
 
-### Quick Start
+All agents are implemented in the Python backend (`backend/agents/`). The CLI acts as a thin client that displays results from the backend.
 
-```bash
-# Inside GWEN
-/new-agent my-agent
-```
+### Current Agents
 
-This creates:
+1. **CloudflareAgent** - CDN/DNS status monitoring
+2. **AWSAgent** - AWS Health Dashboard events
+3. **AzureAgent** - Azure public cloud status (RSS feed)
+4. **GCPAgent** - Google Cloud Platform incidents
+5. **GitHubAgent** - GitHub services status
+6. **DatadogAgent** - Datadog monitoring platform status
+7. **AtlassianAgent** - Jira/Confluence/Bitbucket status
 
-```
-cli-agents/my-agent/
-├── agent.json    # Configuration
-└── index.ts      # Implementation
-```
+### Adding New Agents
 
-### Agent Structure
+To add a new monitoring agent:
 
-**agent.json** - Agent metadata:
+1. Create a new Python file in `backend/agents/`
+2. Inherit from `BaseAgent` class
+3. Implement the `retrieve()` method
+4. Register the agent in `backend/orchestrator/orchestrator.py`
 
-```json
-{
-  "name": "my-agent",
-  "version": "1.0.0",
-  "description": "My custom agent",
-  "author": "GWEN",
-  "timeout": 30000
-}
-```
-
-**index.js** - Agent implementation:
-
-```javascript
-/**
- * Agent entry point
- * @param {Object} config - Agent configuration from agent.json
- * @param {Object} context - Execution context with logging
- */
-export async function run(config, context) {
-  context.log('Agent starting...', 'info');
-  
-  try {
-    // Your agent logic here
-    await doSomething();
-    
-    context.log('Task completed', 'success');
-  } catch (error) {
-    context.log(`Error: ${error.message}`, 'error');
-    throw error;
-  }
-}
-```
-
-### Context API
-
-The `context` object provides:
-
-```javascript
-context.log(message, level)
-```
-
-**Log Levels:**
-- `'info'` - Normal information (white)
-- `'success'` - Success messages (green)
-- `'warn'` - Warnings (yellow)
-- `'error'` - Errors (red)
-- `'system'` - System messages (cyan)
+Refer to existing agents for implementation examples
 
 ---
 
@@ -543,25 +486,32 @@ npm start
 - **Backend**: Python changes auto-reload with uvicorn  
 - **CLI**: TypeScript changes require rebuild: `npm run build`
 
-### Testing Agents
-
-After building, run GWEN and test your agents:
-
-```bash
-npm run build
-npm start
-# Then type: /run-agent my-agent
-```
-
 ---
 
-## 🎨 TRON Aesthetic
+## 🤖 Backend Agents
 
-The UI uses:
-- **Colors**: Neon cyan (`#00FFFF`), white, black
-- **Borders**: Rounded borders with cyan color
-- **Symbols**: `◢◤◥◣` (header), `▶` (prompt), `•✓✖⚠◆` (logs)
-- **Fonts**: Terminal monospace
+All agents are implemented in the Python backend (`backend/agents/`). The CLI acts as a thin client that displays results from the backend.
+
+### Current Agents
+
+1. **CloudflareAgent** - CDN/DNS status monitoring
+2. **AWSAgent** - AWS Health Dashboard events
+3. **AzureAgent** - Azure public cloud status (RSS feed)
+4. **GCPAgent** - Google Cloud Platform incidents
+5. **GitHubAgent** - GitHub services status
+6. **DatadogAgent** - Datadog monitoring platform status
+7. **AtlassianAgent** - Jira/Confluence/Bitbucket status
+
+### Adding New Agents
+
+To add a new monitoring agent:
+
+1. Create a new Python file in `backend/agents/`
+2. Inherit from `BaseAgent` class
+3. Implement the `retrieve()` method
+4. Register the agent in `backend/orchestrator/orchestrator.py`
+
+Refer to existing agents for implementation examples.
 
 ---
 
@@ -592,6 +542,18 @@ The UI uses:
 npm link
 ```
 
+### Agents Not Showing in Dashboard
+
+- Ensure backend is running on port 8000
+- Run `/list-agents` to verify backend connection
+- Check backend logs for agent execution errors
+
+### Dashboard Shows Stale Data
+
+- Use `/start-agents` to manually refresh
+- Auto-refresh runs every 5 minutes
+- Check backend logs for orchestrator errors
+
 ### TypeScript Errors
 
 TypeScript errors about missing modules will resolve once you run:
@@ -608,53 +570,33 @@ Make the bin script executable:
 chmod +x bin/gwen
 ```
 
-### Agent Not Found
-
-Ensure:
-1. Agent has `agent.json` and `index.js`
-2. `index.js` exports a `run()` function
-3. Agent is in the `cli-agents/` directory (for local) or `backend/agents/` (for backend)
-
-### Logs Not Appearing
-
-Check:
-- `context.log()` is called with valid level
-- Agent function is `async`
-- Errors are caught and logged
-
 ---
 
 ## 📝 Examples
 
-### Example 1: Run Single Agent
+### Example 1: View Dashboard (Auto-starts on launch)
 
 ```
-▶ /run-agent CloudflareAgent
+▶ gwen
 ```
 
-Output:
-```
-◆ [12:34:56] [system] Starting agent: CloudflareAgent
-• [12:34:56] [CloudflareAgent] Fetching Cloudflare status...
-✓ [12:34:57] [CloudflareAgent] Status: Operational
-✓ [12:34:57] [system] Agent completed: CloudflareAgent
-```
+Dashboard automatically shows all 7 agent statuses.
 
-### Example 2: Auto-Run All Agents
+### Example 2: Manual Refresh
 
 ```
-▶ /run-agent --auto
+▶ /start-agents
 ```
 
-Executes all 7 agents in parallel via backend.
+Manually trigger all agents to refresh status.
 
-### Example 3: Create New Agent
+### Example 3: View Detailed Results
 
 ```
-▶ /new-agent deploy-checker
+▶ /detail
 ```
 
-Creates `cli-agents/deploy-checker/` with templates.
+Browse full metrics, execution times, and raw output for each agent.
 
 ---
 
