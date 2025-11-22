@@ -1,3 +1,4 @@
+import React from 'react';
 import { Box, Text } from 'ink';
 
 export interface DashboardAgent {
@@ -16,7 +17,7 @@ interface DashboardTableProps {
 /**
  * DashboardTable - Compact table view showing agent status at a glance
  */
-export const DashboardTable: React.FC<DashboardTableProps> = ({ agents }) => {
+export const DashboardTable = React.memo<DashboardTableProps>(({ agents }) => {
   const getStatusColor = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('operational') || s.includes('completed') || s.includes('success')) return 'green';
@@ -99,4 +100,4 @@ export const DashboardTable: React.FC<DashboardTableProps> = ({ agents }) => {
       )}
     </Box>
   );
-};
+});

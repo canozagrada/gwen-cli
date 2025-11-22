@@ -1,3 +1,4 @@
+import React from 'react';
 import { Box, Text } from 'ink';
 
 interface PromptProps {
@@ -9,7 +10,7 @@ interface PromptProps {
 /**
  * Prompt - Command input prompt with TRON styling
  */
-export const Prompt: React.FC<PromptProps> = ({ value, isExecuting, currentAgent }) => {
+export const Prompt = React.memo<PromptProps>(({ value, isExecuting, currentAgent }) => {
   const getPromptSymbol = () => {
     if (isExecuting) return '◉';
     return '▶';
@@ -32,4 +33,4 @@ export const Prompt: React.FC<PromptProps> = ({ value, isExecuting, currentAgent
       <Text color="cyan">▋</Text>
     </Box>
   );
-};
+});

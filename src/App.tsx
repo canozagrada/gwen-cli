@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useInput, useApp, Box, Text } from 'ink';
 import { Header } from './ui/Header.js';
 import { Prompt } from './ui/Prompt.js';
@@ -218,17 +218,15 @@ const App: React.FC = () => {
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Header />
-      {/* Dashboard Table - Single Pane */}
-      <DashboardTable key="dashboard" agents={state.dashboardAgents} />
-      
-      <Prompt
-        value={state.inputValue}
-        isExecuting={state.isExecuting}
-        currentAgent={state.currentAgent}
-      />
-      
-      {/* Command Palette - Positioned below prompt to avoid overlap */}
+      <Box flexDirection="column">
+        <Header />
+        <DashboardTable agents={state.dashboardAgents} />
+        <Prompt
+          value={state.inputValue}
+          isExecuting={state.isExecuting}
+          currentAgent={state.currentAgent}
+        />
+      </Box>
       {state.showCommandPalette && (
         <CommandPalette
           commands={filteredCommands}

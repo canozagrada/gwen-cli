@@ -1,3 +1,4 @@
+import React from 'react';
 import { Box, Text } from 'ink';
 import { Command } from '../types';
 
@@ -10,7 +11,7 @@ interface CommandPaletteProps {
 /**
  * CommandPalette - Overlay showing available commands when "/" is typed
  */
-export const CommandPalette: React.FC<CommandPaletteProps> = ({
+export const CommandPalette = React.memo<CommandPaletteProps>(({
   commands,
   selectedIndex,
   visible,
@@ -50,4 +51,4 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       </Box>
     </Box>
   );
-};
+});

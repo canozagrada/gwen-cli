@@ -1,21 +1,97 @@
-PS D:\github\gwen\gwen-cli> gwen
+#What it shows after only typing "/" to list the available commands:
 
- ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
- │  ◢◤ GWEN SYSTEM ONLINE ◥◣                                                                                                                                                                                   │
- ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\marco> gwen
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │  ◢◤ GWEN SYSTEM ONLINE ◥◣                                                                                          │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  Multi-Agent Orchestration Interface · Type / for commands
 
- ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
- │ DASHBOARD - Live Agent Status                                                                                                                                                                               │
- │ Agent                 Status            Summary                                                                                                                                                             │
- │ ───────────────────────────────────────────────────────────────────────────────────────────────                                                                                                             │
- │ CloudflareAgent       • Ready           [20:03:04] Execution completed successfully for Cl...                                                                                                               │
- │ AzureAgent            • Ready           [20:03:03] Execution completed successfully for Az...                                                                                                               │
- │ AtlassianAgent        • Ready           [20:03:03] Execution completed successfully for At...                                                                                                               │
- │ GitHubAgent           • Ready           [20:03:04] Execution completed successfully for Gi...                                                                                                               │
- │ DatadogAgent          • Ready           [20:03:04] Execution completed successfully for Da...                                                                                                               │
- │ AWSAgent              • Ready           [20:03:04] Execution completed successfully for AW...                                                                                                               │
- │ GCPAgent              • Ready           [20:03:04] Execution completed successfully for GC...                                                                                                               │
- ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ DASHBOARD - Live Agent Status                                                                                      │
+ │ Agent                 Status            Summary                                                                    │
+ │ ───────────────────────────────────────────────────────────────────────────────────────────────                    │
+ │ CloudflareAgent       ⚠ Degraded        41 incidents over last 7 days                                              │
+ │ AzureAgent            ✓ Operational     No incidents over last 7 days                                              │
+ │ AtlassianAgent        ✓ Operational     No incidents over last 7 days                                              │
+ │ GitHubAgent           ✓ Operational     10 incidents over last 7 days                                              │
+ │ DatadogAgent          ✓ Operational     4 incidents over last 7 days                                               │
+ │ AWSAgent              ✓ Operational     No incidents over last 7 days                                              │
+ │ GCPAgent              ✓ Operational     No incidents over last 7 days                                              │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
  ▶ ▋
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │  ◢◤ GWEN SYSTEM ONLINE ◥◣                                                                                          │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Multi-Agent Orchestration Interface · Type / for commands
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ DASHBOARD - Live Agent Status                                                                                      │
+ │ Agent                 Status            Summary                                                                    │
+ │ ───────────────────────────────────────────────────────────────────────────────────────────────                    │
+ │ CloudflareAgent       ⚠ Degraded        41 incidents over last 7 days                                              │
+ │ AzureAgent            ✓ Operational     No incidents over last 7 days                                              │
+ │ AtlassianAgent        ✓ Operational     No incidents over last 7 days                                              │
+ │ GitHubAgent           ✓ Operational     10 incidents over last 7 days                                              │
+ │ DatadogAgent          ✓ Operational     4 incidents over last 7 days                                               │
+ │ AWSAgent              ✓ Operational     No incidents over last 7 days                                              │
+ │ GCPAgent              ✓ Operational     No incidents over last 7 days                                              │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ /▋
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │                                                                                                                    │
+ │  Available Commands                                                                                                │
+ │                                                                                                                    │
+ │  ▶ /start-agents - Execute all agents                                                                              │
+ │    /run-agent - Execute a specific agent                                                                           │
+ │    /list-agents - List all available agents from backend                                                           │
+ │    /help - Show help information                                                                                   │
+ │    /exit - Exit GWEN                                                                                               │
+ │                                                                                                                    │
+ │  Use ↑↓ to navigate, Enter to select, Esc to close                                                                 │
+ │                                                                                                                    │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ #What I want the behavior to actually be:
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │  ◢◤ GWEN SYSTEM ONLINE ◥◣                                                                                        │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Multi-Agent Orchestration Interface · Type / for commands
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ DASHBOARD - Live Agent Status                                                                                      │
+ │ Agent                 Status            Summary                                                                    │
+ │ ───────────────────────────────────────────────────────────────────────────────────────────────                    │
+ │ CloudflareAgent       ⚠ Degraded        41 incidents over last 7 days                                              │
+ │ AzureAgent            ✓ Operational     No incidents over last 7 days                                              │
+ │ AtlassianAgent        ✓ Operational     No incidents over last 7 days                                              │
+ │ GitHubAgent           ✓ Operational     10 incidents over last 7 days                                              │
+ │ DatadogAgent          ✓ Operational     4 incidents over last 7 days                                               │
+ │ AWSAgent              ✓ Operational     No incidents over last 7 days                                              │
+ │ GCPAgent              ✓ Operational     No incidents over last 7 days                                              │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ /▋
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │                                                                                                                    │
+ │  Available Commands                                                                                                │
+ │                                                                                                                    │
+ │  ▶ /start-agents - Execute all agents                                                                              │
+ │    /run-agent - Execute a specific agent                                                                           │
+ │    /list-agents - List all available agents from backend                                                           │
+ │    /help - Show help information                                                                                   │
+ │    /exit - Exit GWEN                                                                                               │
+ │                                                                                                                    │
+ │  Use ↑↓ to navigate, Enter to select, Esc to close                                                                 │
+ │                                                                                                                    │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
