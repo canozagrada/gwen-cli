@@ -34,6 +34,9 @@ class CloudflareAgent(BaseAgent):
         # Check current status
         status_data = await self._get_cloudflare_status()
         
+        # Get components to understand regional status
+        components = await self._get_components()
+        
         # Check for scheduled maintenance
         scheduled = await self._get_scheduled_maintenance()
         in_progress_count = sum(1 for m in scheduled if m.get("in_progress", False))
@@ -49,17 +52,22 @@ class CloudflareAgent(BaseAgent):
         # Initialize result dictionary
         result = {
             "status": status_data,
-            "unresolved_incidents": [],
+            "ongoing_incidents": [],
             "recent_incidents": [],
-            "scheduled_maintenance": scheduled
+            "scheduled_maintenance": scheduled,
+            "components": components,
+            "components_by_region": self._group_components_by_region(components)
         }
         
         # If not operational, get unresolved incidents
         if status_data['indicator'] != "none":
             self.status.add_message("System not operational - fetching unresolved incidents")
             unresolved = await self._get_unresolved_incidents()
-            result["unresolved_incidents"] = unresolved
+            result["ongoing_incidents"] = unresolved
             self.status.add_message(f"Found {len(unresolved)} unresolved incident(s)")
+            
+            # Group incidents by region
+            result["ongoing_incidents_by_region"] = self._group_incidents_by_region(unresolved)
         else:
             self.status.add_message("All systems operational")
         
@@ -67,6 +75,7 @@ class CloudflareAgent(BaseAgent):
         self.status.add_message("Fetching incidents from the last 14 days")
         recent_incidents = await self._get_recent_incidents(days=14)
         result["recent_incidents"] = recent_incidents
+        result["recent_incidents_by_region"] = self._group_incidents_by_region(recent_incidents)
         self.status.add_message(f"Found {len(recent_incidents)} incident(s) in the last 14 days")
         
         if scheduled:
@@ -227,3 +236,138 @@ class CloudflareAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Error fetching scheduled maintenance: {e}")
             return []
+    
+    async def _get_components(self) -> List[Dict[str, Any]]:
+        """Fetch all Cloudflare components/services."""
+        import aiohttp
+        
+        url = "https://www.cloudflarestatus.com/api/v2/components.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        components = data.get("components", [])
+                        
+                        return [
+                            {
+                                "id": comp["id"],
+                                "name": comp["name"],
+                                "status": comp["status"],
+                                "description": comp.get("description", ""),
+                                "group": comp.get("group", False),
+                                "group_id": comp.get("group_id")
+                            }
+                            for comp in components
+                        ]
+                    else:
+                        self.logger.error(f"Failed to fetch components: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching components: {e}")
+            return []
+    
+    def _group_components_by_region(self, components: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Group components by region, prioritizing US/North America.
+        
+        Cloudflare components often include region/location in their names.
+        """
+        regions = {
+            "US/North America": [],
+            "Europe": [],
+            "Asia Pacific": [],
+            "South America": [],
+            "Africa": [],
+            "Middle East": [],
+            "Global/Other": []
+        }
+        
+        # Region keywords for categorization
+        region_keywords = {
+            "US/North America": ["united states", "us-", "north america", "canada", "mexico", "usa"],
+            "Europe": ["europe", "eu-", "uk", "germany", "france", "netherlands", "ireland"],
+            "Asia Pacific": ["asia", "ap-", "japan", "singapore", "australia", "hong kong", "india"],
+            "South America": ["south america", "brazil", "argentina", "sa-"],
+            "Africa": ["africa", "south africa", "af-"],
+            "Middle East": ["middle east", "uae", "dubai", "me-"]
+        }
+        
+        for comp in components:
+            name_lower = comp["name"].lower() if comp.get("name") else ""
+            description_lower = comp.get("description", "").lower() if comp.get("description") else ""
+            categorized = False
+            
+            # Check each region's keywords
+            for region, keywords in region_keywords.items():
+                if any(kw in name_lower or kw in description_lower for kw in keywords):
+                    regions[region].append(comp)
+                    categorized = True
+                    break
+            
+            if not categorized:
+                regions["Global/Other"].append(comp)
+        
+        # Remove empty regions
+        return {region: comps for region, comps in regions.items() if comps}
+    
+    def _group_incidents_by_region(self, incidents: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Group incidents by affected regions based on component names.
+        
+        Prioritizes US/North America incidents.
+        """
+        regions = {
+            "US/North America": [],
+            "Europe": [],
+            "Asia Pacific": [],
+            "South America": [],
+            "Africa": [],
+            "Middle East": [],
+            "Global/Multiple Regions": []
+        }
+        
+        region_keywords = {
+            "US/North America": ["united states", "us-", "north america", "canada", "mexico", "usa"],
+            "Europe": ["europe", "eu-", "uk", "germany", "france", "netherlands", "ireland"],
+            "Asia Pacific": ["asia", "ap-", "japan", "singapore", "australia", "hong kong", "india"],
+            "South America": ["south america", "brazil", "argentina", "sa-"],
+            "Africa": ["africa", "south africa", "af-"],
+            "Middle East": ["middle east", "uae", "dubai", "me-"]
+        }
+        
+        for incident in incidents:
+            components = incident.get("components", [])
+            name_lower = incident.get("name", "").lower() if incident.get("name") else ""
+            
+            # If no components or "global" in name, it's global
+            if not components or "global" in name_lower:
+                regions["Global/Multiple Regions"].append(incident)
+                continue
+            
+            # Check which regions are affected based on component names
+            affected_regions = set()
+            for comp_name in components:
+                comp_name_lower = comp_name.lower()
+                for region, keywords in region_keywords.items():
+                    if any(kw in comp_name_lower for kw in keywords):
+                        affected_regions.add(region)
+            
+            # If multiple regions or none detected, it's global
+            if len(affected_regions) > 1 or len(affected_regions) == 0:
+                regions["Global/Multiple Regions"].append(incident)
+            else:
+                region = list(affected_regions)[0]
+                regions[region].append(incident)
+        
+        # Remove empty regions and prioritize US/North America
+        filtered = {region: incs for region, incs in regions.items() if incs}
+        
+        # Reorder to put US/North America first
+        if "US/North America" in filtered:
+            ordered = {"US/North America": filtered.pop("US/North America")}
+            ordered.update(filtered)
+            return ordered
+        
+        return filtered

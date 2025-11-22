@@ -34,10 +34,20 @@ class GCPAgent(BaseAgent):
         # Get all incidents
         all_incidents = await self._get_all_incidents()
         
+        # Get scheduled maintenance
+        scheduled = await self._get_scheduled_maintenance()
+        in_progress_count = sum(1 for m in scheduled if m.get("in_progress", False))
+        
         # Initialize result dictionary
         result = {
-            "current_incidents": [],
-            "recent_incidents": []
+            "status": {
+                "indicator": "none",
+                "description": "All Systems Operational",
+                "updated_at": datetime.now().isoformat()
+            },
+            "ongoing_incidents": [],
+            "recent_incidents": [],
+            "scheduled_maintenance": scheduled
         }
         
         # Separate current vs recent incidents
@@ -48,11 +58,18 @@ class GCPAgent(BaseAgent):
             if incident.get("end"):
                 result["recent_incidents"].append(incident)
             else:
-                result["current_incidents"].append(incident)
+                result["ongoing_incidents"].append(incident)
         
-        if len(result["current_incidents"]) > 0:
-            self.status.add_message(f"Found {len(result['current_incidents'])} current incident(s)")
+        # Update status based on ongoing incidents
+        if len(result["ongoing_incidents"]) > 0:
+            result["status"]["indicator"] = "minor"
+            result["status"]["description"] = f"{len(result['ongoing_incidents'])} active incident(s)"
+            if in_progress_count > 0:
+                result["status"]["description"] += f" ({in_progress_count} maintenance in progress)"
+            self.status.add_message(f"Found {len(result['ongoing_incidents'])} current incident(s)")
         else:
+            if in_progress_count > 0:
+                result["status"]["description"] = f"All Systems Operational ({in_progress_count} maintenance in progress)"
             self.status.add_message("All systems operational")
         
         # Filter recent incidents to last 14 days
@@ -60,6 +77,9 @@ class GCPAgent(BaseAgent):
         recent_incidents = await self._get_recent_incidents(all_incidents, days=14)
         result["recent_incidents"] = recent_incidents
         self.status.add_message(f"Found {len(recent_incidents)} incident(s) in the last 14 days")
+        
+        if scheduled:
+            self.status.add_message(f"Found {len(scheduled)} upcoming scheduled maintenance window(s)")
         
         return result
     
@@ -125,4 +145,84 @@ class GCPAgent(BaseAgent):
             return recent_incidents
         except Exception as e:
             self.logger.error(f"Error filtering recent incidents: {e}")
+            return []
+    
+    async def _get_scheduled_maintenance(self) -> List[Dict[str, Any]]:
+        """
+        Fetch scheduled maintenance from GCP.
+        
+        Note: GCP doesn't have a separate scheduled maintenance endpoint.
+        Maintenance is included in the incidents feed with a special flag.
+        """
+        import aiohttp
+        from datetime import timezone
+        
+        url = "https://status.cloud.google.com/incidents.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        incidents = await response.json()
+                        now = datetime.now(timezone.utc)
+                        
+                        # Filter for maintenance-type incidents that are future or in-progress
+                        maintenance = []
+                        for incident in incidents:
+                            # Check if it's a maintenance event (GCP uses specific keywords)
+                            external_desc = incident.get("external_desc", "").lower()
+                            service_name = incident.get("service_name", "").lower()
+                            
+                            is_maintenance = any(kw in external_desc or kw in service_name 
+                                               for kw in ["maintenance", "scheduled", "planned"])
+                            
+                            if is_maintenance and incident.get("begin"):
+                                try:
+                                    begin_date = datetime.fromisoformat(incident["begin"].replace("Z", "+00:00"))
+                                    
+                                    # Check if maintenance is in the future or ongoing
+                                    if incident.get("end"):
+                                        end_date = datetime.fromisoformat(incident["end"].replace("Z", "+00:00"))
+                                        # Include if not yet ended
+                                        if end_date >= now:
+                                            in_progress = begin_date <= now <= end_date
+                                            maintenance.append({
+                                                "id": incident.get("id", ""),
+                                                "number": incident.get("number", ""),
+                                                "name": incident.get("external_desc", ""),
+                                                "scheduled_for": incident["begin"],
+                                                "scheduled_until": incident["end"],
+                                                "in_progress": in_progress,
+                                                "affected_products": [
+                                                    p.get("title", "") for p in incident.get("affected_products", [])
+                                                ],
+                                                "service_name": incident.get("service_name", ""),
+                                                "uri": incident.get("uri", "")
+                                            })
+                                    else:
+                                        # Future maintenance without end date
+                                        if begin_date >= now:
+                                            maintenance.append({
+                                                "id": incident.get("id", ""),
+                                                "number": incident.get("number", ""),
+                                                "name": incident.get("external_desc", ""),
+                                                "scheduled_for": incident["begin"],
+                                                "scheduled_until": None,
+                                                "in_progress": False,
+                                                "affected_products": [
+                                                    p.get("title", "") for p in incident.get("affected_products", [])
+                                                ],
+                                                "service_name": incident.get("service_name", ""),
+                                                "uri": incident.get("uri", "")
+                                            })
+                                except (ValueError, TypeError) as e:
+                                    self.logger.warning(f"Error parsing maintenance date: {e}")
+                                    continue
+                        
+                        return maintenance
+                    else:
+                        self.logger.error(f"Failed to fetch maintenance: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching scheduled maintenance: {e}")
             return []

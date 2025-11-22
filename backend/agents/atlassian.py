@@ -35,19 +35,29 @@ class AtlassianAgent(BaseAgent):
         status_data = await self._get_atlassian_status()
         self.status.add_message(f"Status: {status_data['description']}")
         
+        # Get scheduled maintenance
+        scheduled = await self._get_scheduled_maintenance()
+        in_progress_count = sum(1 for m in scheduled if m.get("in_progress", False))
+        
+        # Update status description if maintenance is happening
+        original_description = status_data['description']
+        if in_progress_count > 0:
+            status_data['description'] = f"{original_description} ({in_progress_count} scheduled maintenance in progress)"
+        
         # Initialize result dictionary
         result = {
             "status": status_data,
-            "unresolved_incidents": [],
-            "recent_incidents": []
+            "ongoing_incidents": [],
+            "recent_incidents": [],
+            "scheduled_maintenance": scheduled
         }
         
         # If not operational, get unresolved incidents
         if status_data['indicator'] != "none":
             self.status.add_message("System not operational - fetching unresolved incidents")
             unresolved = await self._get_unresolved_incidents()
-            result["unresolved_incidents"] = unresolved
-            self.status.add_message(f"Found {len(unresolved)} unresolved incident(s)")
+            result["ongoing_incidents"] = unresolved
+            self.status.add_message(f"Found {len(unresolved)} ongoing incident(s)")
         else:
             self.status.add_message("All systems operational")
         
@@ -56,6 +66,9 @@ class AtlassianAgent(BaseAgent):
         recent_incidents = await self._get_recent_incidents(days=14)
         result["recent_incidents"] = recent_incidents
         self.status.add_message(f"Found {len(recent_incidents)} incident(s) in the last 14 days")
+        
+        if scheduled:
+            self.status.add_message(f"Found {len(scheduled)} upcoming scheduled maintenance window(s)")
         
         return result
     
@@ -165,4 +178,50 @@ class AtlassianAgent(BaseAgent):
                         return []
         except Exception as e:
             self.logger.error(f"Error fetching recent incidents: {e}")
+            return []
+    
+    async def _get_scheduled_maintenance(self) -> List[Dict[str, Any]]:
+        """Fetch scheduled maintenance windows."""
+        import aiohttp
+        from datetime import timezone
+        
+        url = "https://status.atlassian.com/api/v2/scheduled-maintenances.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        maintenances = data.get("scheduled_maintenances", [])
+                        now = datetime.now(timezone.utc)
+                        
+                        # Extract upcoming and in-progress maintenance
+                        result = []
+                        for maint in maintenances:
+                            scheduled_for = datetime.fromisoformat(maint["scheduled_for"].replace("Z", "+00:00"))
+                            scheduled_until = datetime.fromisoformat(maint["scheduled_until"].replace("Z", "+00:00"))
+                            
+                            # Check if maintenance is currently in progress
+                            in_progress = scheduled_for <= now <= scheduled_until
+                            
+                            # Only include future or currently active maintenance
+                            if scheduled_until >= now:
+                                result.append({
+                                    "id": maint["id"],
+                                    "name": maint["name"],
+                                    "status": maint["status"],
+                                    "scheduled_for": maint["scheduled_for"],
+                                    "scheduled_until": maint["scheduled_until"],
+                                    "in_progress": in_progress,
+                                    "impact": maint.get("impact", "maintenance"),
+                                    "components": [c["name"] for c in maint.get("components", [])],
+                                    "shortlink": maint.get("shortlink", "")
+                                })
+                        
+                        return result
+                    else:
+                        self.logger.error(f"Failed to fetch scheduled maintenance: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching scheduled maintenance: {e}")
             return []

@@ -55,7 +55,6 @@ export interface DashboardAgent {
 export type ViewMode = 'main' | 'detail';
 
 export interface AppState {
-  logs: LogEntry[];
   inputValue: string;
   showCommandPalette: boolean;
   selectedCommandIndex: number;

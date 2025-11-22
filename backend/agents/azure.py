@@ -2,16 +2,15 @@
 
 from typing import Any, Dict, List
 from datetime import datetime, timedelta
-import xml.etree.ElementTree as ET
 
 from .base import BaseAgent
 
 
 class AzureAgent(BaseAgent):
     """
-    Agent for interacting with Azure Status.
+    Agent for interacting with Azure Status API.
     
-    Monitors operational status via RSS feed and Azure DevOps health API.
+    Monitors operational status via Statuspage.io v2 API and RSS feed fallback.
     """
     
     def __init__(self):
@@ -32,117 +31,199 @@ class AzureAgent(BaseAgent):
         """
         self.status.add_message("Checking Azure operational status")
         
-        # Check current status via RSS feed (for Azure public cloud)
+        # Check current status
         status_data = await self._get_azure_status()
         self.status.add_message(f"Status: {status_data['description']}")
+        
+        # Get scheduled maintenance
+        scheduled = await self._get_scheduled_maintenance()
+        in_progress_count = sum(1 for m in scheduled if m.get("in_progress", False))
+        
+        # Update status description if maintenance is happening
+        original_status = status_data['description']
+        if in_progress_count > 0:
+            status_data['description'] = f"{original_status} ({in_progress_count} scheduled maintenance in progress)"
+            self.status.add_message(f"Status: {status_data['description']}")
         
         # Initialize result dictionary
         result = {
             "status": status_data,
-            "unresolved_incidents": [],
-            "recent_incidents": status_data.get("recent_incidents", [])
+            "ongoing_incidents": [],
+            "recent_incidents": [],
+            "scheduled_maintenance": scheduled
         }
         
-        # RSS feed returns recent incidents directly
-        recent_count = len(result["recent_incidents"])
-        if recent_count > 0:
-            self.status.add_message(f"Found {recent_count} recent incident(s) from RSS feed")
+        # If not operational, get unresolved incidents
+        if status_data['indicator'] != "none":
+            self.status.add_message("System not operational - fetching unresolved incidents")
+            unresolved = await self._get_unresolved_incidents()
+            result["ongoing_incidents"] = unresolved
+            self.status.add_message(f"Found {len(unresolved)} unresolved incident(s)")
         else:
-            self.status.add_message("No recent incidents")
+            self.status.add_message("All systems operational")
+        
+        # Get incidents from the last 14 days
+        self.status.add_message("Fetching incidents from the last 14 days")
+        recent_incidents = await self._get_recent_incidents(days=14)
+        result["recent_incidents"] = recent_incidents
+        self.status.add_message(f"Found {len(recent_incidents)} incident(s) in the last 14 days")
+        
+        if scheduled:
+            self.status.add_message(f"Found {len(scheduled)} upcoming scheduled maintenance window(s)")
         
         return result
     
     async def _get_azure_status(self) -> Dict[str, Any]:
-        """Fetch current Azure operational status from RSS feed."""
+        """Fetch current Azure operational status."""
         import aiohttp
-        from datetime import timezone
         
-        rss_url = "https://rssfeed.azure.status.microsoft/en-us/status/feed/"
+        url = "https://status.azure.com/en-us/status/api/v2/status.json"
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(rss_url) as response:
+                async with session.get(url) as response:
                     if response.status == 200:
-                        xml_content = await response.text()
-                        
-                        # Parse RSS feed
-                        root = ET.fromstring(xml_content)
-                        
-                        # Get all items (incidents) from RSS feed
-                        items = root.findall('.//item')
-                        
-                        # Extract recent incidents (last 30 days)
-                        cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
-                        recent_incidents = []
-                        
-                        for item in items:
-                            title_elem = item.find('title')
-                            link_elem = item.find('link')
-                            desc_elem = item.find('description')
-                            pub_date_elem = item.find('pubDate')
-                            
-                            if title_elem is not None and pub_date_elem is not None:
-                                try:
-                                    # Parse pubDate (RFC 822 format)
-                                    pub_date_str = pub_date_elem.text
-                                    pub_date = datetime.strptime(pub_date_str, '%a, %d %b %Y %H:%M:%S %Z')
-                                    pub_date = pub_date.replace(tzinfo=timezone.utc)
-                                    
-                                    if pub_date >= cutoff_date:
-                                        recent_incidents.append({
-                                            "title": title_elem.text,
-                                            "link": link_elem.text if link_elem is not None else "",
-                                            "description": desc_elem.text if desc_elem is not None else "",
-                                            "published": pub_date_str,
-                                            "published_date": pub_date.isoformat()
-                                        })
-                                except Exception as e:
-                                    self.logger.warning(f"Error parsing RSS item: {e}")
-                                    continue
-                        
-                        # Determine status based on items
-                        if len(items) == 0:
-                            indicator = "none"
-                            description = "All Systems Operational"
-                        else:
-                            # Check if any incidents are recent (within 7 days)
-                            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-                            recent_active = [i for i in recent_incidents if datetime.fromisoformat(i["published_date"]) >= week_ago]
-                            
-                            if recent_active:
-                                indicator = "minor"
-                                description = f"{len(recent_active)} recent incident(s) reported"
-                            else:
-                                indicator = "none"
-                                description = "All Systems Operational"
-                        
+                        data = await response.json()
                         return {
-                            "indicator": indicator,
-                            "description": description,
-                            "updated_at": datetime.now(timezone.utc).isoformat(),
-                            "recent_incidents": recent_incidents[:7]  # Return max 7 most recent
+                            "indicator": data["status"]["indicator"],
+                            "description": data["status"]["description"],
+                            "updated_at": data["page"]["updated_at"]
                         }
                     else:
-                        self.logger.error(f"Failed to fetch Azure RSS feed: {response.status}")
+                        self.logger.error(f"Failed to fetch Azure status: {response.status}")
                         return {
                             "indicator": "unknown",
                             "description": "Unable to fetch status",
-                            "updated_at": datetime.now().isoformat(),
-                            "recent_incidents": []
+                            "updated_at": datetime.now().isoformat()
                         }
         except Exception as e:
             self.logger.error(f"Error fetching Azure status: {e}")
             return {
                 "indicator": "error",
                 "description": f"Error: {str(e)}",
-                "updated_at": datetime.now().isoformat(),
-                "recent_incidents": []
+                "updated_at": datetime.now().isoformat()
             }
     
     async def _get_unresolved_incidents(self) -> List[Dict[str, Any]]:
-        """Azure RSS feed doesn't distinguish unresolved, return empty list."""
-        return []
+        """Fetch unresolved incidents from Azure Status API."""
+        import aiohttp
+        
+        url = "https://status.azure.com/en-us/status/api/v2/incidents/unresolved.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        incidents = data.get("incidents", [])
+                        
+                        # Extract key information from incidents
+                        return [
+                            {
+                                "id": incident["id"],
+                                "name": incident["name"],
+                                "status": incident["status"],
+                                "impact": incident["impact"],
+                                "created_at": incident["created_at"],
+                                "updated_at": incident["updated_at"],
+                                "shortlink": incident.get("shortlink", ""),
+                                "components": [c["name"] for c in incident.get("components", [])],
+                                "updates_count": len(incident.get("incident_updates", []))
+                            }
+                            for incident in incidents
+                        ]
+                    else:
+                        self.logger.error(f"Failed to fetch unresolved incidents: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching unresolved incidents: {e}")
+            return []
     
-    async def _get_recent_incidents(self, days: int = 7) -> List[Dict[str, Any]]:
-        """Recent incidents are already fetched in _get_azure_status, return empty list."""
-        return []
+    async def _get_recent_incidents(self, days: int = 14) -> List[Dict[str, Any]]:
+        """Fetch incidents from the last N days."""
+        import aiohttp
+        from datetime import timezone
+        
+        url = "https://status.azure.com/en-us/status/api/v2/incidents.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        incidents = data.get("incidents", [])
+                        
+                        # Calculate cutoff date (timezone-aware)
+                        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+                        
+                        # Filter incidents from the last N days
+                        recent_incidents = []
+                        for incident in incidents:
+                            created_at = datetime.fromisoformat(incident["created_at"].replace("Z", "+00:00"))
+                            
+                            if created_at >= cutoff_date:
+                                recent_incidents.append({
+                                    "id": incident["id"],
+                                    "name": incident["name"],
+                                    "status": incident["status"],
+                                    "impact": incident["impact"],
+                                    "created_at": incident["created_at"],
+                                    "resolved_at": incident.get("resolved_at"),
+                                    "shortlink": incident.get("shortlink", ""),
+                                    "components": [c["name"] for c in incident.get("components", [])],
+                                    "updates_count": len(incident.get("incident_updates", []))
+                                })
+                        
+                        return recent_incidents
+                    else:
+                        self.logger.error(f"Failed to fetch incidents: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching recent incidents: {e}")
+            return []
+    
+    async def _get_scheduled_maintenance(self) -> List[Dict[str, Any]]:
+        """Fetch scheduled maintenance windows."""
+        import aiohttp
+        from datetime import timezone
+        
+        url = "https://status.azure.com/en-us/status/api/v2/scheduled-maintenances.json"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        maintenances = data.get("scheduled_maintenances", [])
+                        now = datetime.now(timezone.utc)
+                        
+                        # Extract upcoming and in-progress maintenance
+                        result = []
+                        for maint in maintenances:
+                            scheduled_for = datetime.fromisoformat(maint["scheduled_for"].replace("Z", "+00:00"))
+                            scheduled_until = datetime.fromisoformat(maint["scheduled_until"].replace("Z", "+00:00"))
+                            
+                            # Check if maintenance is currently in progress
+                            in_progress = scheduled_for <= now <= scheduled_until
+                            
+                            # Only include future or currently active maintenance
+                            if scheduled_until >= now:
+                                result.append({
+                                    "id": maint["id"],
+                                    "name": maint["name"],
+                                    "status": maint["status"],
+                                    "scheduled_for": maint["scheduled_for"],
+                                    "scheduled_until": maint["scheduled_until"],
+                                    "in_progress": in_progress,
+                                    "impact": maint.get("impact", "maintenance"),
+                                    "components": [c["name"] for c in maint.get("components", [])],
+                                    "shortlink": maint.get("shortlink", "")
+                                })
+                        
+                        return result
+                    else:
+                        self.logger.error(f"Failed to fetch scheduled maintenance: {response.status}")
+                        return []
+        except Exception as e:
+            self.logger.error(f"Error fetching scheduled maintenance: {e}")
+            return []

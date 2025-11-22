@@ -13,7 +13,6 @@ const App: React.FC = () => {
   
   // Application state
   const [state, setState] = useState<AppState>({
-    logs: [],
     inputValue: '',
     showCommandPalette: false,
     selectedCommandIndex: 0,
@@ -29,20 +28,10 @@ const App: React.FC = () => {
   // Prevent duplicate renders by tracking if we're already rendered
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Helper to add logs
-  const addLog = (message: string, level: LogEntry['level'] = 'info', source?: string) => {
-    setState(prev => ({
-      ...prev,
-      logs: [
-        ...prev.logs,
-        {
-          timestamp: new Date(),
-          level,
-          message,
-          source,
-        },
-      ],
-    }));
+  // Helper to add logs (silent - just for backend communication feedback)
+  const addLog = (_message: string, _level?: LogEntry['level'], _source?: string) => {
+    // Logs are not displayed in the UI, so we don't store them
+    // This is here only for API compatibility with command handlers
   };
 
   // Set executing state
@@ -221,18 +210,27 @@ const App: React.FC = () => {
       <Box flexDirection="column">
         <Header />
         <DashboardTable agents={state.dashboardAgents} />
-        <Prompt
-          value={state.inputValue}
-          isExecuting={state.isExecuting}
-          currentAgent={state.currentAgent}
-        />
+        {!state.showCommandPalette && (
+          <Prompt
+            value={state.inputValue}
+            isExecuting={state.isExecuting}
+            currentAgent={state.currentAgent}
+          />
+        )}
       </Box>
       {state.showCommandPalette && (
-        <CommandPalette
-          commands={filteredCommands}
-          selectedIndex={state.selectedCommandIndex}
-          visible={state.showCommandPalette}
-        />
+        <Box flexDirection="column" marginTop={1}>
+          <CommandPalette
+            commands={filteredCommands}
+            selectedIndex={state.selectedCommandIndex}
+            visible={state.showCommandPalette}
+          />
+          <Box marginTop={1}>
+            <Text bold color="cyan">▶ </Text>
+            <Text>{state.inputValue}</Text>
+            <Text color="cyan">▋</Text>
+          </Box>
+        </Box>
       )}
     </Box>
   );
