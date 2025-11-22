@@ -1,2 +1,10 @@
 #!/usr/bin/env node
-import '../dist/index.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { pathToFileURL } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const indexPath = join(__dirname, '..', 'dist', 'index.js');
+import(pathToFileURL(indexPath).href);
