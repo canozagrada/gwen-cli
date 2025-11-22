@@ -6,7 +6,6 @@ A command-line interface for monitoring cloud service status across
 multiple providers using the Gwen agent orchestration system.
 """
 
-import sys
 import argparse
 import asyncio
 from typing import Optional, List

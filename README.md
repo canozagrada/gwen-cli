@@ -1,359 +1,145 @@
 # GWEN - Multi-Agent Cloud Status Monitor
 
-**G**lobal **W**atch **E**ngine for **N**etwork services - A Python-based multi-agent orchestration system for monitoring cloud service status across multiple providers.
+**G**lobal **W**atch **E**ngine for **N**etwork services - A modern Python CLI tool for monitoring cloud service status across multiple providers.
 
-## Overview
+## Installation (Modern Way - No .bat files!)
 
-GWEN is a command-line tool that monitors the operational status of major cloud service providers including Cloudflare, AWS, Azure, GCP, GitHub, Datadog, and Atlassian. It aggregates status information, incidents, and scheduled maintenance across all services into a single interface.
+```bash
+# Clone the repository
+git clone https://github.com/marcodepumper/gwen-cli.git
+cd gwen-cli
 
-### Key Features
-
-- 🌍 **Multi-Provider Monitoring**: Track 7 major cloud providers simultaneously
-- 📊 **Real-time Status**: Current operational status and ongoing incidents
-- 🔍 **Component-Level Details**: See individual component status (e.g., specific data centers, regions)
-- 📅 **Scheduled Maintenance**: View upcoming maintenance windows
-- 📜 **Historical Data**: Access up to 14 days of incident history
-- 🌎 **Regional Awareness**: Cloudflare incidents and components grouped by region (US/North America prioritized)
-- 🎨 **Beautiful CLI**: Clean, formatted terminal output using Rich library
-- ⚡ **Async Performance**: Fast concurrent agent execution
-
-### Monitored Services
-
-- **Cloudflare** - Global CDN and security services
-- **AWS** - Amazon Web Services
-- **Azure** - Microsoft cloud platform
-- **GCP** - Google Cloud Platform
-- **GitHub** - Development platform and services
-- **Datadog** - Monitoring and analytics platform
-- **Atlassian** - Jira, Confluence, and other services
-
-## Architecture
-
-GWEN is a pure Python application with two main components:
-
-1. **Backend (FastAPI)** - Async agent orchestration system with REST API
-2. **CLI (gwen.py)** - Rich-formatted command-line interface
-
-```
-┌──────────────────┐
-│   gwen.py CLI    │  ← User interface (Rich library)
-└────────┬─────────┘
-         │ HTTP (aiohttp)
-┌────────▼─────────┐
-│  FastAPI Server  │  ← Orchestrator
-│  (port 8000)     │
-└────────┬─────────┘
-         │
-    ┌────┴────┐
-    │ 7 Agents│  ← Data collection from status APIs
-    └─────────┘
+# Install as a proper Python package
+pip install -e .
 ```
 
-## Installation
-
-### Prerequisites
-
-- Python 3.9 or higher
-- pip package manager
-
-### Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/marcodepumper/gwen-cli.git
-   cd gwen-cli
-   ```
-
-2. **Install Python dependencies**
-   ```bash
-   pip install -r backend/requirements.txt
-   ```
-
-3. **Windows Users**
-   
-   Use the included `gwen.bat` wrapper:
-   ```cmd
-   cd D:\github\gwen-cli
-   .\gwen.bat status
-   .\gwen.bat maintenance
-   ```
-   
-   **Optional - Add to PATH for global access:**
-   ```cmd
-   # Add D:\github\gwen-cli to your PATH environment variable
-   # Then you can run from anywhere: gwen.bat status
-   ```
-
-4. **Unix/Linux/macOS Users**
-   Make CLI executable:
-   ```bash
-   chmod +x bin/gwen
-   # Then use: ./bin/gwen status
-   ```
+That's it! Now you have:
+- ✅ `gwen` command available everywhere
+- ✅ `gwen-server` command for the backend  
+- ✅ Works on Windows, Linux, macOS
+- ✅ No .bat files needed!
 
 ## Quick Start
 
-### 1. Start the Backend Server
+**Step 1:** Start the backend server (in one terminal):
+```bash
+gwen-server
+```
 
-In one terminal, start the FastAPI backend:
+**Step 2:** Use the CLI (in another terminal):
+```bash
+gwen status
+gwen incidents
+gwen maintenance CloudflareAgent
+gwen help
+```
+
+## What Senior Devs Get
+
+This is now a proper Python package with:
+- 📦 `pyproject.toml` (modern Python packaging)
+- 🎯 Entry points via `console_scripts`
+- 🏗️ Proper `src/` layout
+- 📚 Single source of dependencies
+- 🔧 Development mode with `pip install -e .`
+
+No more:
+- ❌ `.bat` wrappers
+- ❌ `python script.py` commands
+- ❌ Path management headaches
+- ❌ Platform-specific scripts
+
+## Commands
+
+All commands work the same on Windows, Linux, and macOS:
 
 ```bash
-cd backend
-python -m uvicorn main:app --port 8000
+gwen status                    # Show all services
+gwen status CloudflareAgent    # Detailed view
+gwen incidents --show-recent   # View incidents
+gwen maintenance              # Upcoming maintenance
+gwen list-agents              # List all agents
+gwen help                     # Show help
 ```
 
-The backend will initialize all 7 monitoring agents and listen on `http://127.0.0.1:8000`.
+## Features
 
-### 2. Use the CLI
+- 🌍 **Multi-Provider**: Cloudflare, AWS, Azure, GCP, GitHub, Datadog, Atlassian
+- 📊 **Component-Level Tracking**: See individual datacenter/region status
+- 🗺️ **Regional Grouping**: Maintenance windows organized by geography
+- 🎨 **Beautiful CLI**: Rich-formatted terminal output
+- ⚡ **Fast**: Async concurrent agent execution
 
-**Windows (from project directory):**
-```cmd
-.\gwen.bat status
-.\gwen.bat incidents
-.\gwen.bat maintenance
-.\gwen.bat help
-```
-
-**Or use Python directly:**
-```cmd
-python gwen.py status
-```
-
-**Unix/Linux/macOS:**
-```bash
-python gwen.py status
-# Or use the shell wrapper:
-./bin/gwen status
-```
-
-## Usage
-
-### Commands
-
-#### `status [agent]`
-Show current operational status of all services or a specific agent.
-
-```bash
-# All services - shows summary table
-.\gwen.bat status
-# or: python gwen.py status
-
-# Specific service - shows detailed breakdown
-.\gwen.bat status CloudflareAgent
-```
-
-**Summary table includes:**
-- Overall status indicator (✅ Operational, ⚠️ Minor, 🔴 Major, 🚨 Critical)
-- **Component status** - Non-operational components even when overall status is OK
-- Active incident count
-- Scheduled maintenance count
-- Last updated timestamp
-
-**Detailed view includes:**
-- Current status with description
-- Ongoing incidents with details
-- Non-operational components grouped by region
-- Scheduled maintenance (sorted soonest first)
-
-**Example component details:**
-```
-Overall Status: All Systems Operational
-
-Non-Operational Components:
-
-  North America:
-    Re-Routed: DTW, ORF, ANC
-    Partially Re-Routed: FSD
-```
-
-#### `incidents [agent] [--days N] [--show-recent]`
-Display current and recent incidents.
-
-```bash
-# All ongoing incidents
-.\gwen.bat incidents
-
-# Specific service with recent history
-.\gwen.bat incidents CloudflareAgent --show-recent --days 7
-
-# Last 14 days of incidents
-.\gwen.bat incidents --days 14 --show-recent
-```
-
-**Options:**
-- `--days N` - Number of days to look back (default: 14)
-- `--show-recent` - Include resolved incidents
-
-**Features:**
-- Separates ongoing vs. resolved incidents
-- Shows incident impact, status, and timestamps
-- Filters by service or shows all
-
-#### `maintenance [agent]`
-Show upcoming and in-progress scheduled maintenance.
-
-```bash
-# All services
-.\gwen.bat maintenance
-
-# Specific service - shows regional grouping
-.\gwen.bat maintenance CloudflareAgent
-```
-
-**Features:**
-- Sorted by date (soonest first)
-- In-progress maintenance prioritized
-- **Regional grouping** - Maintenance windows grouped by geographic region
-- Compact location codes (DFW, LAX, EZE, SIN, etc.)
-- Date ranges for each region
-
-**Example regional output:**
-```
-North America: 13 scheduled
-  Locations: RIC, IAD, ORD, LAX, EWR, DFW, SJC, SEA, MIA
-  Dates: 2025-11-24 to 2025-12-02
-
-Latin America & Caribbean: 13 scheduled
-  Locations: EZE, BOG, LIM, CWB, GRU, NVT, ARI, MDE, SJO, QRO
-  Dates: 2025-11-25 to 2025-12-02
-```
-
-#### `list-agents`
-List all available monitoring agents.
-
-```bash
-.\gwen.bat list-agents
-```
-
-#### `help`
-Display detailed command reference with examples.
-
-```bash
-.\gwen.bat help
-```
-
-### Example Output
+## Architecture
 
 ```
-                    Cloud Service Status
-┌────────────┬──────────────────┬────────────────────┬───────────┬─────────────┬──────────────────────┐
-│ Service    │ Status           │ Components         │ Incidents │ Maintenance │ Last Updated         │
-├────────────┼──────────────────┼────────────────────┼───────────┼─────────────┼──────────────────────┤
-│ Cloudflare │ ✅ Operational   │ ⚠ 4 re-routed      │ 0         │ 0           │ 2025-11-22 11:00:00 │
-│ Azure      │ ✅ Operational   │ ✓ All OK           │ 0         │ 0           │ 2025-11-22 11:00:01 │
-│ AWS        │ ⚠️ 1 ongoing     │ ✓ All OK           │ 3         │ 0           │ 2025-11-22 11:00:02 │
-│ GCP        │ ✅ Operational   │ ✓ All OK           │ 0         │ 1           │ 2025-11-22 11:00:03 │
-│ GitHub     │ ✅ Operational   │ ✓ All OK           │ 0         │ 0           │ 2025-11-22 11:00:04 │
-│ Datadog    │ ✅ Operational   │ ✓ All OK           │ 0         │ 0           │ 2025-11-22 11:00:05 │
-│ Atlassian  │ ✅ Operational   │ ✓ All OK           │ 0         │ 0           │ 2025-11-22 11:00:06 │
-└────────────┴──────────────────┴────────────────────┴───────────┴─────────────┴──────────────────────┘
-
-💡 Tip: Run 'python gwen.py status CloudflareAgent' for detailed component status
-```
-
-## API Endpoints
-
-The backend provides REST endpoints for integration:
-
-- `GET /` - System information
-- `GET /health` - Health check
-- `POST /retrieve-status` - Execute all agents and get status
-- `GET /agent-status` - Get all agent statuses
-- `GET /agents` - List available agents
-- `POST /agents/{agent_name}/execute` - Execute specific agent
-
-### Example API Usage
-
-```bash
-# Execute all agents
-curl -X POST http://localhost:8000/retrieve-status
-
-# Get status
-curl http://localhost:8000/agent-status
-
-# Execute specific agent
-curl -X POST http://localhost:8000/agents/CloudflareAgent/execute
-```
-
-## Project Structure
-
-```
-gwen-cli/
-├── gwen.py              # Python CLI application (486 lines)
-├── gwen.bat             # Windows wrapper (shorter commands)
-├── bin/
-│   └── gwen            # Unix/Linux/macOS wrapper
-└── backend/            # FastAPI backend
-    ├── main.py         # API server with REST endpoints
-    ├── requirements.txt
-    ├── agents/         # 7 monitoring agents
-    │   ├── base.py
-    │   ├── cloudflare.py  # Component-level tracking
-    │   ├── aws.py         # RSS feed parsing
-    │   ├── azure.py       # RSS feed parsing
-    │   ├── gcp.py
-    │   ├── github.py
-    │   ├── datadog.py
-    │   └── atlassian.py
-    ├── orchestrator/   # Agent orchestration
-    │   └── orchestrator.py
-    └── common/         # Shared utilities
-        ├── models.py   # Pydantic data models
-        ├── config.py
-        └── logging.py
+src/gwen_cli/
+├── cli.py          → gwen command
+├── server.py       → gwen-server command  
+└── backend/        → FastAPI application
+    ├── agents/     → 7 monitoring agents
+    ├── orchestrator/
+    └── common/
 ```
 
 ## Development
 
-### Adding a New Agent
-
-1. Create a new agent class in `backend/agents/`
-2. Inherit from `BaseAgent`
-3. Implement `_execute_task()` method
-4. Register in `backend/orchestrator/orchestrator.py`
-
-### Running Tests
-
 ```bash
-cd backend
-pytest
+# Install in development mode
+pip install -e .
+
+# Make changes to code
+# ... edit files ...
+
+# Changes are immediately available
+gwen status  # Uses your latest code!
 ```
 
 ## Troubleshooting
 
-### Backend not connecting
-Ensure the backend is running on port 8000:
+**Command not found?**
 ```bash
-cd backend
-python -m uvicorn main:app --port 8000
+# Make sure pip bin directory is in PATH
+pip install -e . --force-reinstall
 ```
 
-Check if backend is accessible:
+**Backend not running?**
+```bash
+gwen-server  # Start the backend
+```
+
+**Check health:**
 ```bash
 curl http://localhost:8000/health
 ```
 
-### API Error 500
-Check backend logs for agent execution errors. Some agents may require API keys or specific network access.
+## What Changed from Old Version
 
-### Commands not working
-- **Windows**: Use `.\gwen.bat` from project directory or `python gwen.py`
-- **Unix/Linux/macOS**: Use `python gwen.py` or `./bin/gwen`
-- If you get "command not found", ensure you're in the project directory
+### Before (the "cringe" way 😅):
+```cmd
+cd D:\github\gwen-cli
+.\gwen.bat status              # Windows only
+python gwen.py status          # Cross-platform
+```
 
-### Component status not showing
-Component-level details are currently available for Cloudflare only. Other services show overall status.
+### After (modern Python):
+```bash
+gwen status                    # Works everywhere!
+```
+
+### Technical Improvements:
+1. **Proper packaging** with `pyproject.toml`
+2. **Console scripts** instead of wrapper scripts
+3. **src/ layout** (modern Python best practice)
+4. **Single install** command
+5. **Virtual environment** friendly
+6. **Cross-platform** by default
+
+## Requirements
+
+- Python 3.9+
+- All dependencies installed automatically via pip
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
-## Acknowledgments
-
-- Built with [FastAPI](https://fastapi.tiangolo.com/)
-- CLI powered by [Rich](https://rich.readthedocs.io/)
-- Status data from official service status pages
+MIT

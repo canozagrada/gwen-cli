@@ -1,9 +1,0 @@
-#!/bin/sh
-# Gwen CLI launcher
-
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-
-# Run the Python CLI
-exec python3 "$ROOT_DIR/gwen.py" "$@"
