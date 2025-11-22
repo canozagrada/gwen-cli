@@ -10,7 +10,6 @@
 - **Multi-Cloud Monitoring**: Track status across 7 cloud platforms (Cloudflare, AWS, Azure, GCP, GitHub, Datadog, Atlassian)
 - **Full-Screen TUI**: Interactive terminal interface powered by Ink
 - **Command Palette**: Press `/` to open a visual command selector
-- **Detail View**: Browse individual agent results with full metrics and output
 - **Backend Integration**: FastAPI backend handles all agent logic and execution
 - **Auto-Start & Auto-Refresh**: Agents start immediately on launch and refresh every 5 minutes
 - **14-Day History**: Comprehensive incident tracking across services
@@ -71,10 +70,9 @@ npm start
 gwen
 
 # Inside GWEN:
-/health              # Check backend is connected
-/list-agents         # See available agents
-/run-agent --auto    # Execute all agents
-/status              # View results
+/help              # Show available commands
+/list-agents       # See available agents
+/start-agents      # Execute all agents
 ```
 
 ---
@@ -146,7 +144,6 @@ gwen-cli/ (repo root)
 | `/start-agents` | Execute all agents and update dashboard |
 | `/run-agent <name>` | Execute a specific agent (e.g., CloudflareAgent) |
 | `/list-agents` | List all available agents from backend |
-| `/detail` | Browse agent results in full-screen detail view |
 | `/help` | Show help information |
 | `/exit` | Exit GWEN |
 
@@ -157,7 +154,6 @@ gwen-cli/ (repo root)
 | `/start-agents` | `POST /retrieve-status` |
 | `/run-agent <name>` | `POST /agents/<name>/execute` |
 | `/list-agents` | `GET /` (system info) + `GET /agent-status` |
-| `/detail` | Uses cached results from last execution |
 
 
 ### Dashboard View
@@ -175,13 +171,6 @@ The dashboard shows a live status table:
 │ AWSAgent           ✓ Operational  No incidents over... │
 ╰─────────────────────────────────────────────────────────╯
 ```
-
-### Detail View
-
-Press `/detail` to browse full agent results:
-- **← →** or **Tab/Shift+Tab** - Navigate between agents
-- **Esc** - Return to main dashboard
-- View execution time, key metrics, messages, and raw output
 
 ### Command Palette
 
@@ -216,9 +205,6 @@ Multi-Agent Orchestration Interface · Type / for commands
 │ DatadogAgent       ✓ Operational  No incidents over... │
 │ AtlassianAgent     ✓ Operational  No incidents over... │
 ╰─────────────────────────────────────────────────────────╯
-
-▶ /detail
-[Opens full-screen detail view with agent metrics]
 
 ▶ /start-agents
 [Manually refresh all agents]
@@ -340,7 +326,6 @@ After building, run GWEN to see the dashboard:
 npm run build
 npm start
 # Dashboard will auto-populate with agent statuses
-# Use /detail to see full results
 ```
 
 ---
@@ -606,13 +591,13 @@ Dashboard automatically shows all 7 agent statuses.
 
 Manually trigger all agents to refresh status.
 
-### Example 3: View Detailed Results
+### Example 3: Run Specific Agent
 
 ```
-▶ /detail
+▶ /run-agent CloudflareAgent
 ```
 
-Browse full metrics, execution times, and raw output for each agent.
+Execute a single agent to check its status.
 
 ---
 

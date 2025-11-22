@@ -3,7 +3,6 @@ import { useInput, useApp, Box, Text } from 'ink';
 import { Header } from './ui/Header.js';
 import { Prompt } from './ui/Prompt.js';
 import { CommandPalette } from './ui/CommandPalette.js';
-import { AgentDetailView } from './ui/AgentDetailView.js';
 import { DashboardTable } from './ui/DashboardTable.js';
 import { LogEntry, Command, AppState, DashboardAgent } from './types.js';
 import { parseCommand, shouldShowCommandPalette, filterCommands } from './core/command-parser.js';
@@ -56,23 +55,13 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, currentAgent: agent }));
   };
 
-  // Store agent results for detail view
-  const setAgentResults = (results: AppState['agentResults']) => {
-    setState(prev => ({ ...prev, agentResults: results }));
-  };
-
   // Update dashboard agents
   const setDashboardAgents = (agents: DashboardAgent[]) => {
     setState(prev => ({ ...prev, dashboardAgents: agents }));
   };
 
-  // Switch to detail view
-  const showDetailView = () => {
-    setState(prev => ({ ...prev, viewMode: 'detail', selectedAgentIndex: 0 }));
-  };
-
   // Create command handlers (connects to FastAPI backend)
-  const commands: Command[] = createCommands(addLog, setExecuting, setCurrentAgent, setAgentResults, showDetailView, setDashboardAgents);
+  const commands: Command[] = createCommands(addLog, setExecuting, setCurrentAgent, setDashboardAgents);
 
   // Filter commands based on input
   const filteredCommands = filterCommands(commands, state.inputValue);
@@ -109,79 +98,9 @@ const App: React.FC = () => {
 
   // Handle keyboard input
   useInput((input: string, key: any) => {
-    // Handle detail view navigation
-    if (state.viewMode === 'detail') {
-      if (key.escape) {
-        setState(prev => ({ ...prev, viewMode: 'main', selectedAgentIndex: 0 }));
-        return;
-      }
-
-      if (key.leftArrow || (key.shift && key.tab)) {
-        setState(prev => ({
-          ...prev,
-          selectedAgentIndex: Math.max(0, prev.selectedAgentIndex - 1),
-        }));
-        return;
-      }
-
-      if (key.rightArrow || key.tab) {
-        setState(prev => ({
-          ...prev,
-          selectedAgentIndex: Math.min(
-            prev.agentResults.length - 1,
-            prev.selectedAgentIndex + 1
-          ),
-        }));
-        return;
-      }
-
-      // Ignore other input in detail view
-      return;
-    }
-
     // Ignore input during execution
     if (state.isExecuting) {
       return;
-    }
-
-    // Handle scrolling in main view (when not showing command palette)
-    if (!state.showCommandPalette) {
-      const maxHeight = 15; // Log feed height
-      const totalLogs = state.logs.length;
-      
-      if (key.upArrow || (key.pageUp)) {
-        const scrollAmount = key.pageUp ? 5 : 1;
-        setState(prev => {
-          const currentOffset = prev.scrollOffset === 0 ? 
-            Math.max(0, totalLogs - maxHeight) : prev.scrollOffset;
-          const newOffset = Math.max(0, currentOffset - scrollAmount);
-          return { ...prev, scrollOffset: newOffset };
-        });
-        return;
-      }
-
-      if (key.downArrow || key.pageDown) {
-        const scrollAmount = key.pageDown ? 5 : 1;
-        setState(prev => {
-          const maxOffset = Math.max(0, totalLogs - maxHeight);
-          const currentOffset = prev.scrollOffset === 0 ? maxOffset : prev.scrollOffset;
-          const newOffset = Math.min(maxOffset, currentOffset + scrollAmount);
-          // Reset to 0 (auto-scroll mode) if at bottom
-          return { ...prev, scrollOffset: newOffset === maxOffset ? 0 : newOffset };
-        });
-        return;
-      }
-
-      // Home/End for quick navigation
-      if (key.home) {
-        setState(prev => ({ ...prev, scrollOffset: 0 }));
-        return;
-      }
-
-      if (key.end) {
-        setState(prev => ({ ...prev, scrollOffset: 0 })); // 0 = auto-scroll to bottom
-        return;
-      }
     }
 
     // Handle command palette navigation
@@ -299,31 +218,22 @@ const App: React.FC = () => {
 
   return (
     <Box flexDirection="column" padding={1}>
-      {state.viewMode === 'main' ? (
-        <>
-          <Header />
-          {/* Dashboard Table - Single Pane */}
-          <DashboardTable key="dashboard" agents={state.dashboardAgents} />
-          
-          <Prompt
-            value={state.inputValue}
-            isExecuting={state.isExecuting}
-            currentAgent={state.currentAgent}
-          />
-          
-          {/* Command Palette - Positioned below prompt to avoid overlap */}
-          {state.showCommandPalette && (
-            <CommandPalette
-              commands={filteredCommands}
-              selectedIndex={state.selectedCommandIndex}
-              visible={state.showCommandPalette}
-            />
-          )}
-        </>
-      ) : (
-        <AgentDetailView 
-          agents={state.agentResults}
-          selectedIndex={state.selectedAgentIndex}
+      <Header />
+      {/* Dashboard Table - Single Pane */}
+      <DashboardTable key="dashboard" agents={state.dashboardAgents} />
+      
+      <Prompt
+        value={state.inputValue}
+        isExecuting={state.isExecuting}
+        currentAgent={state.currentAgent}
+      />
+      
+      {/* Command Palette - Positioned below prompt to avoid overlap */}
+      {state.showCommandPalette && (
+        <CommandPalette
+          commands={filteredCommands}
+          selectedIndex={state.selectedCommandIndex}
+          visible={state.showCommandPalette}
         />
       )}
     </Box>

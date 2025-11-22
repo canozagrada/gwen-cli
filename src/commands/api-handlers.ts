@@ -9,8 +9,6 @@ export function createCommands(
   addLog: (message: string, level?: LogEntry['level'], source?: string) => void,
   setExecuting: (executing: boolean) => void,
   setCurrentAgent: (agent?: string) => void,
-  setAgentResults?: (results: AgentResult[]) => void,
-  showDetailView?: () => void,
   setDashboardAgents?: (agents: DashboardAgent[]) => void
 ): Command[] {
 
@@ -29,19 +27,6 @@ export function createCommands(
       addLog(`Total Time: ${report.total_duration.toFixed(2)}s`, 'info', 'system');
     }
     
-    // Store agent results for detail view
-    const agentResults: AgentResult[] = report.agent_summaries.map(agent => ({
-      name: agent.agent_name,
-      status: agent.status,
-      summary: agent.summary,
-      key_metrics: agent.key_metrics,
-      execution_time: agent.execution_time,
-    }));
-    
-    if (setAgentResults) {
-      setAgentResults(agentResults);
-    }
-
     // Update dashboard with agent statuses
     const dashboardAgents: DashboardAgent[] = report.agent_summaries.map(agent => {
       // Extract incident counts from key_metrics if available
@@ -129,7 +114,6 @@ export function createCommands(
     setExecuting(false);
     setCurrentAgent(undefined);
     addLog('All agents completed', 'success', 'system');
-    addLog('Type /detail to browse detailed results', 'info', 'system');
   };
   return [
     {
@@ -297,18 +281,6 @@ export function createCommands(
       },
     },
     {
-      name: 'detail',
-      description: 'Browse detailed agent results in full-screen view',
-      aliases: ['browse', 'view'],
-      execute: async () => {
-        if (showDetailView) {
-          showDetailView();
-        } else {
-          addLog('Detail view not available', 'error', 'system');
-        }
-      },
-    },
-    {
       name: 'help',
       description: 'Show help information',
       aliases: ['?', 'h'],
@@ -320,7 +292,6 @@ export function createCommands(
         addLog('/start-agents      - Execute all agents', 'info');
         addLog('/run-agent <name>  - Execute a specific agent', 'info');
         addLog('/list-agents       - List all available agents', 'info');
-        addLog('/detail            - Browse agent results in detail view', 'info');
         addLog('/help              - Show this help', 'info');
         addLog('/exit              - Exit GWEN', 'info');
         addLog('', 'info');
