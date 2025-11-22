@@ -300,12 +300,21 @@ async def list_agents() -> Dict[str, List[Dict[str, Any]]]:
     agents_info = []
     for agent_name, agent in orchestrator.agents.items():
         status = orchestrator.get_agent_status(agent_name)
+        
+        # Safely get description
+        description = None
+        if agent.__class__.__doc__:
+            try:
+                description = agent.__class__.__doc__.strip().split('\n')[0]
+            except:
+                description = "Agent"
+        
         agents_info.append({
             "name": agent_name,
             "type": agent.__class__.__name__,
             "status": status.state.value if status else "idle",
             "last_execution": status.end_time.isoformat() if status and status.end_time else None,
-            "description": agent.__class__.__doc__.strip().split('\n')[0] if agent.__class__.__doc__ else None
+            "description": description
         })
     
     return {
