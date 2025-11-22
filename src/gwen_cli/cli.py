@@ -262,15 +262,18 @@ async def cmd_incidents(args):
                 agents_data[agent_name] = agent_summary["raw_output"]
     
     # Display incidents
+    found_any = False
     for agent_name, output in agents_data.items():
         service_name = agent_name.replace("Agent", "")
         
         ongoing = output.get("ongoing_incidents", [])
         recent = output.get("recent_incidents", [])
         
-        if not ongoing and not recent:
+        # Skip if no incidents to show
+        if not ongoing and not (args.show_recent and recent):
             continue
         
+        found_any = True
         console.print(f"\n[bold]{service_name}[/bold]")
         console.print("-" * 60)
         
@@ -292,6 +295,13 @@ async def cmd_incidents(args):
                 console.print(f"  {inc.get('name', 'Unnamed')}")
                 console.print(f"  Resolved: {format_timestamp(inc.get('resolved_at'))}")
                 console.print()
+    
+    if not found_any:
+        if args.show_recent:
+            console.print("[green]No incidents found in the last {} days[/green]".format(args.days))
+        else:
+            console.print("[green]✅ No ongoing incidents! All services operational.[/green]")
+            console.print("\n[dim]💡 Tip: Use --show-recent to see resolved incidents[/dim]")
 
 
 async def cmd_maintenance(args):
