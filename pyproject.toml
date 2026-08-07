@@ -4,37 +4,41 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwen-cli"
-version = "1.0.0"
-description = "Multi-Agent Cloud Status Monitor - Track Cloudflare, AWS, Azure, GCP, GitHub, Datadog, and Atlassian"
+version = "2.0.0"
+description = "Cloud status monitor - track Cloudflare, AWS, Azure, GCP, GitHub, Datadog, and Atlassian from the terminal"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "GWEN Contributors"}
 ]
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "fastapi>=0.100.0",
-    "uvicorn[standard]>=0.23.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "aiohttp>=3.8.0",
-    "typing-extensions>=4.7.0",
-    "python-multipart>=0.0.6",
+    "aiohttp>=3.9.0",
     "rich>=13.0.0",
+    "defusedxml>=0.7.1",
 ]
+
+# Dev dependencies are declared twice on purpose: `dependency-groups` is what
+# `uv sync` and `uv run` pick up automatically, and the extra keeps
+# `pip install -e ".[dev]"` working for anyone not using uv. Keep them in step.
+[dependency-groups]
+dev = ["pytest>=7.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
 
 [project.urls]
 Homepage = "https://github.com/marcodepumper/gwen-cli"
@@ -43,7 +47,13 @@ Issues = "https://github.com/marcodepumper/gwen-cli/issues"
 
 [project.scripts]
 gwen = "gwen_cli.cli:main"
-gwen-server = "gwen_cli.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Live tests need network access and someone else's uptime, so they are
+# opt-in: run them with `pytest -m live`.
+addopts = "-m 'not live'"
+markers = ["live: checks the real vendor endpoints (requires network)"]
