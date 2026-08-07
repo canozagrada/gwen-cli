@@ -1,250 +1,139 @@
-# GWEN - Multi-Agent Cloud Status Monitor
+# GWEN
 
-**G**lobal **W**atch **E**ngine for **N**etwork services - A Python CLI tool for monitoring cloud service status across multiple providers.
+**G**lobal **W**atch **E**ngine for **N**etwork services — a command-line monitor for public cloud status feeds.
 
-## Overview
+GWEN checks Cloudflare, AWS, Azure, GCP, GitHub, Datadog, and Atlassian concurrently and prints a single summary. It reads only public status endpoints, so there are no credentials to configure and nothing to run in the background.
 
-GWEN monitors operational status of major cloud providers including Cloudflare, AWS, Azure, GCP, GitHub, Datadog, and Atlassian. It aggregates status information, incidents, and scheduled maintenance into a unified command-line interface.
+```
+$ gwen status
+                             Cloud Service Status
++----------------------------------------------------------------------------+
+| Service    | Status | Components  | Incidents | Maintenance | Updated      |
+|------------+--------+-------------+-----------+-------------+--------------|
+| Cloudflare | MINOR  | 52 degraded |         0 |          14 | 08-07 02:48Z |
+| AWS        | MAJOR  | --          |         2 |          -- | 08-07 03:59Z |
+| Azure      | OK     | --          |         0 |          -- | 08-07 03:59Z |
+| GCP        | OK     | --          |         0 |          -- | 08-07 03:59Z |
+| GitHub     | OK     | all OK      |         0 |           0 | 08-07 02:48Z |
+| Datadog    | OK     | all OK      |         0 |           0 | 08-06 22:48Z |
+| Atlassian  | OK     | all OK      |         0 |           0 | 08-07 02:48Z |
++----------------------------------------------------------------------------+
+```
 
-### Key Features
+## Install
 
-- 🌍 **Multi-Provider Monitoring**: Track 7 major cloud services simultaneously
-- 📊 **Component-Level Tracking**: Monitor individual datacenter and region status
-- 🗺️ **Regional Grouping**: Maintenance windows organized by geography
-- 📅 **Incident History**: Access up to 14 days of incident data
-- 🎨 **Beautiful CLI**: Rich-formatted terminal output
-- ⚡ **Fast Performance**: Async concurrent agent execution
-- 🔧 **Modern Architecture**: Proper Python package with entry points
+Requires Python 3.10 or newer.
 
-## Installation
+With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Clone the repository
 git clone https://github.com/marcodepumper/gwen-cli.git
 cd gwen-cli
+uv run gwen status
+```
 
-# Install the package
+`uv run` creates the environment from `uv.lock` on first use, so there is no separate install step. To get `gwen` on your PATH as a standalone tool:
+
+```bash
+uv tool install .            # or: uv tool install --editable .
+```
+
+With pip:
+
+```bash
+git clone https://github.com/marcodepumper/gwen-cli.git
+cd gwen-cli
 pip install -e .
 ```
 
-This installs:
-- `gwen` - CLI command (works globally on Windows, Linux, macOS)
-- `gwen-server` - Backend server command
+Either way you get one command, `gwen`.
 
-## Quick Start
-
-**1. Start the backend server:**
-```bash
-gwen-server
-```
-
-**2. Use the CLI:**
-```bash
-gwen status                    # Show all services
-gwen status CloudflareAgent    # Detailed service view
-gwen incidents --show-recent   # View incidents
-gwen maintenance              # Upcoming maintenance
-gwen help                     # Command reference
-```
-
-## Commands
-
-### `gwen status [agent]`
-Display current operational status of all services or a specific service.
+## Usage
 
 ```bash
-gwen status                    # Summary table of all services
-gwen status CloudflareAgent    # Detailed view with component breakdown
+gwen status                       # summary of all providers
+gwen status cloudflare            # detail, including degraded components by region
+gwen incidents                    # ongoing incidents only
+gwen incidents --show-recent      # include resolved, last 14 days
+gwen incidents --days 30 --show-recent
+gwen maintenance                  # upcoming windows, grouped by region
+gwen providers                    # what each provider publishes
 ```
 
-**Output includes:**
-- Service health status (Operational, Degraded, Outage)
-- Component-level issues (e.g., specific datacenters)
-- Active incident counts
-- Scheduled maintenance counts
-- Last update timestamp
+Any command takes an optional provider name: `cloudflare`, `aws`, `azure`, `gcp`, `github`, `datadog`, `atlassian`.
 
-### `gwen incidents [options]`
-View ongoing and historical incidents.
+**Exit codes** — `0` all feeds read successfully, `1` at least one feed could not be read, `2` bad arguments. This makes `gwen` usable in a health check:
 
 ```bash
-gwen incidents                      # Show ongoing incidents only
-gwen incidents --show-recent        # Include resolved incidents (last 14 days)
-gwen incidents --days 7             # Last 7 days of history
-gwen incidents CloudflareAgent      # Specific service only
+gwen status >/dev/null || echo "a status feed is unreachable"
 ```
 
-**Options:**
-- `--show-recent` - Include resolved incidents
-- `--days N` - Number of days to look back (default: 14)
+## What each provider actually publishes
 
-### `gwen maintenance [agent]`
-Display scheduled maintenance windows with regional grouping.
+Providers expose different things. GWEN prints `--` where a provider publishes nothing, rather than a `0` that would read as "checked, nothing found".
+
+| Provider   | Source        | Incident history | Maintenance | Components |
+|------------|---------------|------------------|-------------|------------|
+| Cloudflare | Statuspage v2 | yes              | yes         | yes        |
+| GitHub     | Statuspage v2 | yes              | yes         | yes        |
+| Datadog    | Statuspage v2 | yes              | yes         | yes        |
+| Atlassian  | Statuspage v2 | yes              | yes         | --         |
+| AWS        | AWS Health    | yes              | --          | --         |
+| GCP        | Cloud Status  | yes              | --          | --         |
+| Azure      | Status RSS    | --               | --          | --         |
+
+Azure's RSS feed carries only currently-active issues; there is no public history or maintenance calendar behind it. Atlassian runs Statuspage but publishes no component list, so component health is detected per response rather than assumed from the platform.
+
+## Design
+
+A status tool that reports a false "all clear" is worse than no tool, so failures are never silent:
+
+- A feed that cannot be read reports `UNKNOWN` with the reason, never `operational`.
+- One provider failing does not affect the others — each is isolated.
+- Azure's feed is checked against its own `lastBuildDate`; a feed that has stopped being rebuilt is treated as unavailable rather than as good news. An earlier version of this tool reported AWS and Azure as permanently healthy because both feeds had moved and the empty result was indistinguishable from "no incidents".
+
+Outbound requests are bounded in time (20s) and size (8 MB), and XML is parsed with `defusedxml` to block entity-expansion attacks.
+
+## Layout
+
+```
+src/gwen_cli/
+├── cli.py          # argument parsing and rich-formatted output
+├── providers.py    # one fetcher per vendor, normalised to a common shape
+└── regions.py      # geographic grouping for components and maintenance
+```
+
+`providers.gather()` opens a single connection pool and fetches every provider concurrently. Each returns a `ProviderStatus`, so `cli.py` never needs to know how a given vendor publishes its data.
+
+## Tests
 
 ```bash
-gwen maintenance                   # All services
-gwen maintenance CloudflareAgent   # Specific service with regional breakdown
+uv run pytest             # offline, runs in well under a second
+uv run pytest -m live     # also check the real endpoints (needs network)
 ```
 
-**Features:**
-- Sorted by date (soonest first)
-- In-progress maintenance highlighted
-- Regional grouping (North America, Europe, Asia, etc.)
-- Compact location codes (DFW, LAX, SIN, LHR)
-
-### `gwen list-agents`
-List all available monitoring agents.
+Or with pip:
 
 ```bash
-gwen list-agents
+pip install -e ".[dev]"
+pytest
+pytest -m live
 ```
 
-### `gwen help`
-Display detailed command reference and usage examples.
+The default suite runs against payloads recorded from each vendor in `tests/fixtures/`, so it needs no network and is deterministic.
 
-```bash
-gwen help
+The `live` tests are the ones that matter for the failure this tool has actually had. Recorded fixtures prove the parsers handle the shape the feeds *had*; the live tests prove the feeds still have that shape. AWS and Azure both drifted into reporting a permanent all-clear because the code kept working correctly against data that had stopped arriving. Worth running on a schedule rather than on every commit.
+
+### Adding a provider
+
+If it runs Atlassian Statuspage, add one line to `PROVIDERS` in `providers.py`:
+
+```python
+StatuspageProvider("fastly", "Fastly", "https://status.fastly.com"),
 ```
 
-## Architecture
-
-GWEN is built as a modern Python package with proper structure:
-
-```
-gwen-cli/
-├── pyproject.toml              # Project configuration and dependencies
-└── src/
-    └── gwen_cli/               # Main package
-        ├── cli.py              # CLI entry point (gwen command)
-        ├── server.py           # Server entry point (gwen-server command)
-        └── backend/            # FastAPI application
-            ├── main.py         # API server
-            ├── agents/         # 7 monitoring agents
-            │   ├── cloudflare.py
-            │   ├── aws.py
-            │   ├── azure.py
-            │   ├── gcp.py
-            │   ├── github.py
-            │   ├── datadog.py
-            │   └── atlassian.py
-            ├── orchestrator/   # Agent coordination
-            └── common/         # Shared utilities
-```
-
-**Components:**
-- **CLI** - Rich-formatted command-line interface using `gwen` command
-- **Backend** - FastAPI server with async agent orchestration
-- **Agents** - Specialized monitoring agents for each cloud provider
-
-### API Endpoints
-
-The backend server exposes REST endpoints at `http://localhost:8000`:
-
-- `GET /` - System information
-- `GET /health` - Health check
-- `POST /retrieve-status` - Execute all agents and get status
-- `GET /agent-status` - Get all agent statuses  
-- `GET /agents` - List available agents
-- `POST /agents/{agent_name}/execute` - Execute specific agent
-
-## Development
-
-### Setting Up Development Environment
-
-```bash
-# Clone the repository
-git clone https://github.com/marcodepumper/gwen-cli.git
-cd gwen-cli
-
-# Install in development mode
-pip install -e .
-
-# Make code changes
-# ... edit files in src/gwen_cli/ ...
-
-# Test changes immediately (no reinstall needed)
-gwen status
-```
-
-### Adding a New Agent
-
-1. Create a new agent class in `src/gwen_cli/backend/agents/your_agent.py`
-2. Inherit from `BaseAgent` class
-3. Implement the `_execute_task()` method
-4. Register the agent in `src/gwen_cli/backend/orchestrator/orchestrator.py`
-
-### Running Tests
-
-```bash
-# Start the backend for testing
-gwen-server
-
-# In another terminal, test commands
-gwen status
-gwen incidents --show-recent
-gwen maintenance
-```
-
-## Troubleshooting
-
-### Command not found after installation
-
-Ensure pip's bin directory is in your PATH:
-
-```bash
-# Reinstall to verify
-pip install -e . --force-reinstall
-
-# Check installation
-pip show gwen-cli
-```
-
-### Backend server not connecting
-
-Start the backend server:
-```bash
-gwen-server
-```
-
-Verify it's running:
-```bash
-curl http://localhost:8000/health
-```
-
-### Port already in use
-
-If port 8000 is occupied, you can modify the server configuration in `src/gwen_cli/server.py`.
-
-## Requirements
-
-- **Python**: 3.9 or higher
-- **Dependencies**: Automatically installed via pip
-  - FastAPI >= 0.100.0
-  - uvicorn >= 0.23.0
-  - rich >= 13.0.0
-  - aiohttp >= 3.8.0
-  - pydantic >= 2.0.0
-  - And others (see `pyproject.toml`)
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Otherwise subclass `Provider`, implement `fetch()`, return `self.status(...)`, and set `supports_history` / `supports_maintenance` / `supports_components` to match what the feed really offers.
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## Monitored Services
-
-- **Cloudflare** - Global CDN and security services
-- **AWS** - Amazon Web Services
-- **Azure** - Microsoft cloud platform
-- **GCP** - Google Cloud Platform
-- **GitHub** - Development platform and services
-- **Datadog** - Monitoring and analytics platform
-- **Atlassian** - Jira, Confluence, and other services
+MIT
