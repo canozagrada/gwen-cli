@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Synthetic. Azure's live feed carries items only while an issue is active, and
+  it was empty when the other fixtures were recorded. Structure and date format
+  mirror the real feed (see azure_feed.xml for a genuine, empty capture).
+-->
+<rss xmlns:a10="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>Azure Status</title>
+    <link>https://azure.status.microsoft/en-us/status/</link>
+    <description>Azure Status</description>
+    <language>en-us</language>
+    <lastBuildDate>Fri, 07 Aug 2026 04:04:00 Z</lastBuildDate>
+    <item>
+      <title>Investigating - Azure Storage - West Europe</title>
+      <link>https://azure.status.microsoft/en-us/status/history/?trackingId=ABC1-234</link>
+      <description>We are investigating reports of elevated error rates.</description>
+      <pubDate>Fri, 07 Aug 2026 03:10:00 Z</pubDate>
+    </item>
+    <item>
+      <title>Azure Virtual Machines - Degraded performance in East US</title>
+      <link>https://azure.status.microsoft/en-us/status/history/?trackingId=DEF5-678</link>
+      <description>Customers may experience slower than expected operations.</description>
+      <pubDate>Fri, 07 Aug 2026 01:45:00 Z</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[Amazon Web Services Service Status]]></title>
+    <link>https://status.aws.amazon.com/</link>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 06 Aug 2026 21:03:34 PDT</lastBuildDate>
+    <generator>AWS Service Health Dashboard RSS Generator</generator>
+    <description><![CDATA[Receive the most recent update for events affecting the overall availability of Amazon Web Services. To receiv [truncated]]]></description>
+    <ttl>5</ttl>
+
+
+	 <item>
+	  <title><![CDATA[Service disruption: Increased Error Rates]]></title>
+	  <link>https://status.aws.amazon.com/</link>
+	  <pubDate>Thu, 30 Apr 2026 00:25:54 PDT</pubDate>
+	  <guid isPermaLink="false">https://status.aws.amazon.com/#multipleservices-me-central-1_1777533954</guid>
+	  <description><![CDATA[We are providing an update on the ongoing service disruption. The Middle East (UAE) Region (ME-CENTRAL-1) has  [truncated]]]></description>
+	 </item>
+<item>
+	  <title><![CDATA[Service disruption: Increased Connectivity Issues and API Error Rates]]></title>
+	  <link>https://status.aws.amazon.com/</link>
+	  <pubDate>Thu, 30 Apr 2026 00:07:11 PDT</pubDate>
+	  <guid isPermaLink="false">https://status.aws.amazon.com/#multipleservices-me-south-1_1777532831</guid>
+	  <description><![CDATA[We are providing an update on the ongoing service disruption. The Middle East (Bahrain) Region (ME-SOUTH-1) ha [truncated]]]></description>
+	 </item>
+<item>
+	  <title><![CDATA[Service impact: Increased Connectivity Issues and API Error Rates]]></title>
+	  <link>https://status.aws.amazon.com/</link>
+	  <pubDate>Tue, 03 Mar 2026 08:40:00 PST</pubDate>
+	  <guid isPermaLink="false">https://status.aws.amazon.com/#multipleservices-me-south-1_1772556000</guid>
+	  <description><![CDATA[We are providing an update on the ongoing service disruptions affecting the AWS Middle East (Bahrain) Region ( [truncated]]]></description>
+	 </item>
+</channel>
+</rss>

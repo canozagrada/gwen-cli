@@ -1,0 +1,323 @@
+{
+ "page": {
+  "id": "yh6f0r4529hb",
+  "name": "Cloudflare",
+  "url": "https://www.cloudflarestatus.com",
+  "time_zone": "Etc/UTC",
+  "updated_at": "2026-08-07T02:48:45.271Z"
+ },
+ "incidents": [
+  {
+   "id": "3wbkwvf5ypbk",
+   "name": "Web Analytics Configuration issues",
+   "status": "resolved",
+   "created_at": "2026-08-05T15:09:59.177Z",
+   "updated_at": "2026-08-05T17:12:09.885Z",
+   "monitoring_at": "2026-08-05T16:57:55.592Z",
+   "resolved_at": "2026-08-05T17:12:09.871Z",
+   "impact": "minor",
+   "shortlink": "https://stspg.io/7npbb73pq18x",
+   "started_at": "2026-08-05T15:09:59.165Z",
+   "page_id": "yh6f0r4529hb",
+   "incident_updates": [
+    {
+     "id": "mwrgsz76vxch",
+     "status": "resolved",
+     "body": "This incident has been resolved.",
+     "incident_id": "3wbkwvf5ypbk",
+     "created_at": "2026-08-05T17:12:09.871Z",
+     "updated_at": "2026-08-05T17:12:09.871Z",
+     "display_at": "2026-08-05T17:12:09.871Z",
+     "affected_components": [
+      {
+       "code": "qt59p3cr1grx",
+       "name": "Cloudflare Sites and Services - Web Analytics",
+       "old_status": "degraded_performance",
+       "new_status": "operational"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "ynq1pb2ldl6j",
+     "status": "monitoring",
+     "body": "A fix has been implemented and we are monitoring the results.",
+     "incident_id": "3wbkwvf5ypbk",
+     "created_at": "2026-08-05T16:57:55.592Z",
+     "updated_at": "2026-08-05T16:57:55.592Z",
+     "display_at": "2026-08-05T16:57:55.592Z",
+     "affected_components": [
+      {
+       "code": "qt59p3cr1grx",
+       "name": "Cloudflare Sites and Services - Web Analytics",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "q889jc5jv88w",
+     "status": "investigating",
+     "body": "Cloudflare is investigating issues with configuration changes for Cloudflare Web Analytics and rum beacon not  [truncated]",
+     "incident_id": "3wbkwvf5ypbk",
+     "created_at": "2026-08-05T15:09:59.282Z",
+     "updated_at": "2026-08-05T15:09:59.282Z",
+     "display_at": "2026-08-05T15:09:59.282Z",
+     "affected_components": [
+      {
+       "code": "qt59p3cr1grx",
+       "name": "Cloudflare Sites and Services - Web Analytics",
+       "old_status": "operational",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    }
+   ],
+   "components": [
+    {
+     "id": "qt59p3cr1grx",
+     "name": "Web Analytics",
+     "status": "operational",
+     "created_at": "2023-08-01T12:11:32.221Z",
+     "updated_at": "2026-08-05T17:12:09.833Z",
+     "position": 110,
+     "description": "Cloudflare Web Analytics provides free, privacy-first analytics for your website without changing your DNS or  [truncated]",
+     "showcase": false,
+     "start_date": "2023-08-01",
+     "group_id": "1km35smx8p41",
+     "page_id": "yh6f0r4529hb",
+     "group": false,
+     "only_show_if_degraded": false
+    }
+   ],
+   "reminder_intervals": null
+  },
+  {
+   "id": "kf6qktrf2gc1",
+   "name": "Cloudflare Gateway Email List policy issues",
+   "status": "resolved",
+   "created_at": "2026-08-05T14:28:14.830Z",
+   "updated_at": "2026-08-05T16:20:40.064Z",
+   "monitoring_at": "2026-08-05T15:36:16.220Z",
+   "resolved_at": "2026-08-05T16:20:40.045Z",
+   "impact": "minor",
+   "shortlink": "https://stspg.io/0bwyqk3cyl91",
+   "started_at": "2026-08-05T14:28:14.819Z",
+   "page_id": "yh6f0r4529hb",
+   "incident_updates": [
+    {
+     "id": "c7cjcjwdpjzq",
+     "status": "resolved",
+     "body": "This incident has been resolved.",
+     "incident_id": "kf6qktrf2gc1",
+     "created_at": "2026-08-05T16:20:40.045Z",
+     "updated_at": "2026-08-05T16:20:40.045Z",
+     "display_at": "2026-08-05T16:20:40.045Z",
+     "affected_components": [
+      {
+       "code": "gyx2yygg7lmd",
+       "name": "Cloudflare Sites and Services - Gateway",
+       "old_status": "degraded_performance",
+       "new_status": "operational"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "54m8fd7hhq4z",
+     "status": "monitoring",
+     "body": "A fix has been implemented and we are monitoring the results.",
+     "incident_id": "kf6qktrf2gc1",
+     "created_at": "2026-08-05T15:36:16.220Z",
+     "updated_at": "2026-08-05T15:36:16.220Z",
+     "display_at": "2026-08-05T15:36:16.220Z",
+     "affected_components": [
+      {
+       "code": "gyx2yygg7lmd",
+       "name": "Cloudflare Sites and Services - Gateway",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "kf1m7lcpggj7",
+     "status": "investigating",
+     "body": "We are currently investigating this issue.",
+     "incident_id": "kf6qktrf2gc1",
+     "created_at": "2026-08-05T15:24:30.093Z",
+     "updated_at": "2026-08-05T15:24:30.093Z",
+     "display_at": "2026-08-05T15:24:30.093Z",
+     "affected_components": [
+      {
+       "code": "gyx2yygg7lmd",
+       "name": "Cloudflare Sites and Services - Gateway",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    }
+   ],
+   "components": [
+    {
+     "id": "gyx2yygg7lmd",
+     "name": "Gateway",
+     "status": "operational",
+     "created_at": "2023-01-10T09:28:36.367Z",
+     "updated_at": "2026-08-05T16:20:39.988Z",
+     "position": 53,
+     "description": "Cloudflare\u2019s secure web gateway keeps your data safe from malware, ransomware, phishing, command & control, Sh [truncated]",
+     "showcase": false,
+     "start_date": "2023-01-10",
+     "group_id": "1km35smx8p41",
+     "page_id": "yh6f0r4529hb",
+     "group": false,
+     "only_show_if_degraded": false
+    }
+   ],
+   "reminder_intervals": null
+  },
+  {
+   "id": "3n74c5yh817r",
+   "name": "Cloudflare Workers and Pages Assets Uploads issues",
+   "status": "resolved",
+   "created_at": "2026-08-05T08:02:34.213Z",
+   "updated_at": "2026-08-05T08:42:17.036Z",
+   "monitoring_at": "2026-08-05T08:26:18.074Z",
+   "resolved_at": "2026-08-05T08:42:17.010Z",
+   "impact": "minor",
+   "shortlink": "https://stspg.io/jkgwlm2szdhg",
+   "started_at": "2026-08-05T08:02:34.204Z",
+   "page_id": "yh6f0r4529hb",
+   "incident_updates": [
+    {
+     "id": "myqns5vsycbh",
+     "status": "resolved",
+     "body": "This incident has been resolved.",
+     "incident_id": "3n74c5yh817r",
+     "created_at": "2026-08-05T08:42:17.010Z",
+     "updated_at": "2026-08-05T08:42:17.010Z",
+     "display_at": "2026-08-05T08:42:17.010Z",
+     "affected_components": [
+      {
+       "code": "vgxj684rcw7t",
+       "name": "Cloudflare Sites and Services - Pages",
+       "old_status": "degraded_performance",
+       "new_status": "operational"
+      },
+      {
+       "code": "pg21w9xb991r",
+       "name": "Cloudflare Sites and Services - Workers Assets",
+       "old_status": "degraded_performance",
+       "new_status": "operational"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "2vs961ld51m3",
+     "status": "monitoring",
+     "body": "A fix has been implemented and we are monitoring the results.",
+     "incident_id": "3n74c5yh817r",
+     "created_at": "2026-08-05T08:26:18.074Z",
+     "updated_at": "2026-08-05T08:26:18.074Z",
+     "display_at": "2026-08-05T08:26:18.074Z",
+     "affected_components": [
+      {
+       "code": "vgxj684rcw7t",
+       "name": "Cloudflare Sites and Services - Pages",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      },
+      {
+       "code": "pg21w9xb991r",
+       "name": "Cloudflare Sites and Services - Workers Assets",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    },
+    {
+     "id": "005slfq6nhb3",
+     "status": "identified",
+     "body": "The issue has been identified and a fix is being implemented.",
+     "incident_id": "3n74c5yh817r",
+     "created_at": "2026-08-05T08:15:03.388Z",
+     "updated_at": "2026-08-05T08:15:03.388Z",
+     "display_at": "2026-08-05T08:15:03.388Z",
+     "affected_components": [
+      {
+       "code": "vgxj684rcw7t",
+       "name": "Cloudflare Sites and Services - Pages",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      },
+      {
+       "code": "pg21w9xb991r",
+       "name": "Cloudflare Sites and Services - Workers Assets",
+       "old_status": "degraded_performance",
+       "new_status": "degraded_performance"
+      }
+     ],
+     "deliver_notifications": true,
+     "custom_tweet": null,
+     "tweet_id": null
+    }
+   ],
+   "components": [
+    {
+     "id": "vgxj684rcw7t",
+     "name": "Pages",
+     "status": "operational",
+     "created_at": "2021-04-16T21:04:08.018Z",
+     "updated_at": "2026-08-05T08:42:16.943Z",
+     "position": 78,
+     "description": null,
+     "showcase": false,
+     "start_date": "2021-04-16",
+     "group_id": "1km35smx8p41",
+     "page_id": "yh6f0r4529hb",
+     "group": false,
+     "only_show_if_degraded": false
+    },
+    {
+     "id": "pg21w9xb991r",
+     "name": "Workers Assets",
+     "status": "operational",
+     "created_at": "2026-03-30T11:50:12.220Z",
+     "updated_at": "2026-08-05T08:42:16.963Z",
+     "position": 114,
+     "description": null,
+     "showcase": false,
+     "start_date": "2026-03-30",
+     "group_id": "1km35smx8p41",
+     "page_id": "yh6f0r4529hb",
+     "group": false,
+     "only_show_if_degraded": false
+    }
+   ],
+   "reminder_intervals": null
+  }
+ ]
+}

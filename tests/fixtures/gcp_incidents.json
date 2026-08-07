@@ -1,0 +1,168 @@
+[
+ {
+  "id": "3BvH3LVGcupoYqV6F4Nw",
+  "number": "11738310674864064645",
+  "begin": "2026-07-15T23:57:00+00:00",
+  "created": "2026-07-16T03:30:59+00:00",
+  "end": "2026-07-16T12:25:00+00:00",
+  "modified": "2026-07-25T13:16:55+00:00",
+  "external_desc": "Google Cloud VMware Engine (GCVE), Google Cloud NetApp Volumes, and Bare Metal Solutions (BMS) services are ex [truncated]",
+  "updates": [
+   {
+    "created": "2026-07-25T13:16:55+00:00",
+    "modified": "2026-07-25T13:16:55+00:00",
+    "when": "2026-07-25T13:16:55+00:00",
+    "text": "## \\# Incident Report\n## \\#\\# Summary\nOn Wednesday, 15 July 2026, Google Cloud VMware Engine (GCVE), Bare Meta [truncated]",
+    "status": "AVAILABLE",
+    "affected_locations": []
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-07-25T13:16:55+00:00",
+   "modified": "2026-07-25T13:16:55+00:00",
+   "when": "2026-07-25T13:16:55+00:00",
+   "text": "## \\# Incident Report\n## \\#\\# Summary\nOn Wednesday, 15 July 2026, Google Cloud VMware Engine (GCVE), Bare Meta [truncated]",
+   "status": "AVAILABLE",
+   "affected_locations": []
+  },
+  "status_impact": "SERVICE_DISRUPTION",
+  "severity": "medium",
+  "service_key": "zall",
+  "service_name": "Multiple Products",
+  "affected_products": [
+   {
+    "title": "Bare Metal Solution",
+    "id": "5gQF7Qk9XfQ32pStX6Hb",
+    "current_title": "Bare Metal Solution"
+   },
+   {
+    "title": "Google Cloud NetApp Volumes",
+    "id": "vtzMUyQ4z9CbA1x6z85s",
+    "current_title": "Google Cloud NetApp Volumes"
+   },
+   {
+    "title": "VMWare engine",
+    "id": "9H6gWUHvb2ZubeoxzQ1Y",
+    "current_title": "VMWare engine"
+   }
+  ],
+  "uri": "incidents/3BvH3LVGcupoYqV6F4Nw",
+  "currently_affected_locations": [],
+  "previously_affected_locations": [
+   {
+    "title": "Netherlands (europe-west4)",
+    "id": "europe-west4"
+   }
+  ]
+ },
+ {
+  "id": "T8gmtofFSTGT5tbhyciF",
+  "number": "5362718329524538692",
+  "begin": "2026-07-14T17:00:00+00:00",
+  "created": "2026-07-14T20:24:18+00:00",
+  "end": "2026-07-15T03:40:00+00:00",
+  "modified": "2026-07-24T07:14:47+00:00",
+  "external_desc": "Google Cloud VMware Engine (GCVE) Stretched Cluster customers are experiencing zonal outages impacting network [truncated]",
+  "updates": [
+   {
+    "created": "2026-07-24T07:10:18+00:00",
+    "modified": "2026-07-24T07:14:47+00:00",
+    "when": "2026-07-24T07:10:18+00:00",
+    "text": "## Incident Report\n## Summary\nOn Tuesday, 14 July 2026 10:00 PT, Google Cloud VMware Engine (GCVE) Stretched C [truncated]",
+    "status": "AVAILABLE",
+    "affected_locations": []
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-07-24T07:10:18+00:00",
+   "modified": "2026-07-24T07:14:47+00:00",
+   "when": "2026-07-24T07:10:18+00:00",
+   "text": "## Incident Report\n## Summary\nOn Tuesday, 14 July 2026 10:00 PT, Google Cloud VMware Engine (GCVE) Stretched C [truncated]",
+   "status": "AVAILABLE",
+   "affected_locations": []
+  },
+  "status_impact": "SERVICE_DISRUPTION",
+  "severity": "medium",
+  "service_key": "9H6gWUHvb2ZubeoxzQ1Y",
+  "service_name": "VMWare engine",
+  "affected_products": [
+   {
+    "title": "VMWare engine",
+    "id": "9H6gWUHvb2ZubeoxzQ1Y",
+    "current_title": "VMWare engine"
+   }
+  ],
+  "uri": "incidents/T8gmtofFSTGT5tbhyciF",
+  "currently_affected_locations": [],
+  "previously_affected_locations": [
+   {
+    "title": "Melbourne (australia-southeast2)",
+    "id": "australia-southeast2"
+   },
+   {
+    "title": "Frankfurt (europe-west3)",
+    "id": "europe-west3"
+   }
+  ]
+ },
+ {
+  "id": "5fGQt4VbkDnr3Yp8PXPr",
+  "number": "1464522124090870782",
+  "begin": "2026-06-05T07:00:00+00:00",
+  "created": "2026-06-10T01:13:50+00:00",
+  "end": "2026-06-26T19:00:00+00:00",
+  "modified": "2026-06-29T23:06:10+00:00",
+  "external_desc": "Network traffic to Google Cloud originating from Delhi, Chennai, Mumbai and surrounding areas is experiencing  [truncated]",
+  "updates": [
+   {
+    "created": "2026-06-29T23:06:10+00:00",
+    "modified": "2026-06-29T23:06:10+00:00",
+    "when": "2026-06-29T23:06:10+00:00",
+    "text": "**Summary**\nNetwork traffic to Google Cloud originating from Delhi, Chennai, Mumbai and surrounding areas expe [truncated]",
+    "status": "AVAILABLE",
+    "affected_locations": []
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-06-29T23:06:10+00:00",
+   "modified": "2026-06-29T23:06:10+00:00",
+   "when": "2026-06-29T23:06:10+00:00",
+   "text": "**Summary**\nNetwork traffic to Google Cloud originating from Delhi, Chennai, Mumbai and surrounding areas expe [truncated]",
+   "status": "AVAILABLE",
+   "affected_locations": []
+  },
+  "status_impact": "SERVICE_DISRUPTION",
+  "severity": "medium",
+  "service_key": "zall",
+  "service_name": "Multiple Products",
+  "affected_products": [
+   {
+    "title": "Hybrid Connectivity",
+    "id": "5x6CGnZvSHQZ26KtxpK1",
+    "current_title": "Hybrid Connectivity"
+   },
+   {
+    "title": "Media CDN",
+    "id": "FK8WX6iZ3FuQL6qUwski",
+    "current_title": "Media CDN"
+   },
+   {
+    "title": "Virtual Private Cloud (VPC)",
+    "id": "BSGtCUnz6ZmyajsjgTKv",
+    "current_title": "Virtual Private Cloud (VPC)"
+   }
+  ],
+  "uri": "incidents/5fGQt4VbkDnr3Yp8PXPr",
+  "currently_affected_locations": [],
+  "previously_affected_locations": [
+   {
+    "title": "Delhi (asia-south2)",
+    "id": "asia-south2"
+   },
+   {
+    "title": "Global",
+    "id": "global"
+   }
+  ]
+ }
+]
