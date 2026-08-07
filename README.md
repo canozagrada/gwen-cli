@@ -27,7 +27,7 @@ Requires Python 3.10 or newer.
 With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/marcodepumper/gwen-cli.git
+git clone https://github.com/canozagrada/gwen-cli.git
 cd gwen-cli
 uv run gwen status
 ```
@@ -41,7 +41,7 @@ uv tool install .            # or: uv tool install --editable .
 With pip:
 
 ```bash
-git clone https://github.com/marcodepumper/gwen-cli.git
+git clone https://github.com/canozagrada/gwen-cli.git
 cd gwen-cli
 pip install -e .
 ```

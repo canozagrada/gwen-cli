@@ -41,9 +41,9 @@ dev = ["pytest>=7.0"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
-Homepage = "https://github.com/marcodepumper/gwen-cli"
-Repository = "https://github.com/marcodepumper/gwen-cli"
-Issues = "https://github.com/marcodepumper/gwen-cli/issues"
+Homepage = "https://github.com/canozagrada/gwen-cli"
+Repository = "https://github.com/canozagrada/gwen-cli"
+Issues = "https://github.com/canozagrada/gwen-cli/issues"
 
 [project.scripts]
 gwen = "gwen_cli.cli:main"

@@ -35,7 +35,7 @@ SEVERITY = {OK: 0, MINOR: 1, MAJOR: 2, CRITICAL: 3, UNKNOWN: 4}
 
 _TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5)
 _MAX_BYTES = 8 * 1024 * 1024
-_USER_AGENT = f"gwen-cli/{__version__} (+https://github.com/marcodepumper/gwen-cli)"
+_USER_AGENT = f"gwen-cli/{__version__} (+https://github.com/canozagrada/gwen-cli)"
 
 
 @dataclass
