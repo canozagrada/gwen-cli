@@ -1,0 +1,5 @@
+# Normalise line endings so checkouts are consistent across platforms.
+* text=auto eol=lf
+
+# Fixtures are recorded verbatim from upstream feeds; leave them untouched.
+tests/fixtures/** -text
