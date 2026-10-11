@@ -68,6 +68,69 @@ Any command takes an optional provider name: `cloudflare`, `aws`, `azure`, `gcp`
 gwen status >/dev/null || echo "a status feed is unreachable"
 ```
 
+## Your dependencies: `gwen.toml`
+
+Out of the box GWEN covers every built-in provider. A `gwen.toml` in the current directory (or `--config path`) narrows that to what you actually depend on, adds vendors that run Statuspage, and tells `gwen watch` which incidents matter. See [`gwen.example.toml`](gwen.example.toml):
+
+```toml
+providers = ["cloudflare", "aws", "github", "twilio"]
+
+[[statuspage]]                 # any vendor on Atlassian Statuspage
+key = "twilio"
+label = "Twilio"
+url = "https://status.twilio.com"
+
+[filters.aws]                  # only incidents mentioning these count
+match = ["us-east-1", "eu-west-1"]
+
+[filters.cloudflare]           # filtered providers also get per-component alerts
+match = ["(FRA)", "(AMS)"]
+
+[watch]
+state = ".gwen-state.json"     # relative to this file
+unreadable_after = 2           # failed reads in a row before a feed is reported
+```
+
+Every command respects `providers` and the extra Statuspage vendors. Filters only apply to `gwen watch`; `gwen status` still shows each provider's whole picture.
+
+## Alerts: `gwen watch`
+
+`gwen watch` compares the current state with the previous run and posts only what changed: new and cleared incidents, status level changes, filtered components degrading or recovering, and feeds that become unreadable or stale (including Azure's `lastBuildDate` check). Run it from cron or CI; nothing stays running unless you ask for it.
+
+```bash
+gwen watch --dry-run                          # print what would be sent
+GWEN_WEBHOOK=https://hooks.slack.com/... gwen watch
+gwen watch --webhook https://... --interval 300   # keep running, every 5 minutes
+```
+
+```cron
+*/5 * * * * cd /srv/gwen && GWEN_WEBHOOK=https://hooks.slack.com/... gwen watch
+```
+
+The webhook receives a JSON `POST` with a `text` field, which Slack and Mattermost incoming webhooks display as-is, and an `events` list for anything that wants structure:
+
+```json
+{
+  "text": "gwen: 2 changes\n- AWS: new incident: EC2: Increased error rates (us-east-1) (https://...)\n- AWS: status operational -> major",
+  "events": [
+    {"provider": "AWS", "kind": "incident", "summary": "new incident: ...", "url": "https://..."},
+    {"provider": "AWS", "kind": "worse", "summary": "status operational -> major", "url": ""}
+  ]
+}
+```
+
+Event kinds: `incident`, `resolved`, `worse`, `better`, `degraded`, `recovered`, `unreadable`, `readable`.
+
+How it behaves:
+
+- **The first run reports anything already wrong**, so starting to watch never hides an ongoing incident. After that, an unchanged state posts nothing.
+- **One failed read is not news.** A feed is reported unreadable after `unreadable_after` consecutive failures (default 2), once, and again when it recovers. In between, the last good state is kept, so a timeout never makes an incident look resolved.
+- **Undelivered changes are retried.** State is saved only after the webhook accepts the message, so if delivery fails (exit code `3`) the next run sends the same changes again.
+- **The webhook URL is a secret.** Prefer `GWEN_WEBHOOK` or `--webhook` over putting it in `gwen.toml`, which is meant to be committed.
+- **Keep the state file between runs.** In CI, cache or persist `.gwen-state.json`; without it every run is a first run.
+
+Exit codes: `0` ran normally, `1` at least one feed could not be read this run, `2` bad arguments or config, `3` webhook delivery failed.
+
 ## What each provider actually publishes
 
 Providers expose different things. GWEN prints `--` where a provider publishes nothing, rather than a `0` that would read as "checked, nothing found".
