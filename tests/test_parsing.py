@@ -22,7 +22,7 @@ def cloudflare() -> providers.StatuspageProvider:
 
 
 def test_statuspage_reads_status_components_and_maintenance(stub_feeds):
-    stub_feeds({"summary.json": load("statuspage_summary.json")})
+    stub_feeds({"summary.json": _statuspage_with_upcoming_maintenance(load("statuspage_summary.json"))})
 
     result = run(cloudflare().fetch(None, days=0))
 
@@ -177,3 +177,16 @@ def _azure_with_build_date(feed: bytes, moment: datetime) -> bytes:
         f"<lastBuildDate>{stamp}</lastBuildDate>".encode(),
         feed,
     )
+
+
+def _statuspage_with_upcoming_maintenance(summary: bytes) -> bytes:
+    """Shift maintenance windows so the latest ends tomorrow; finished ones are filtered out."""
+    data = json.loads(summary)
+    windows = data["scheduled_maintenances"]
+    latest_end = max(datetime.fromisoformat(w["scheduled_until"]) for w in windows)
+    shift = datetime.now(timezone.utc) + timedelta(days=1) - latest_end
+    for w in windows:
+        for key in ("scheduled_for", "scheduled_until"):
+            if w.get(key):
+                w[key] = (datetime.fromisoformat(w[key]) + shift).isoformat()
+    return json.dumps(data).encode()
