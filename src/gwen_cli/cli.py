@@ -12,9 +12,10 @@ from datetime import datetime
 
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
-from . import config, providers, regions, watch
+from . import config, history, providers, regions, watch
 from .providers import CRITICAL, MAJOR, MINOR, OK, UNKNOWN, ProviderStatus
 
 console = Console()
@@ -282,23 +283,41 @@ def cmd_watch(args) -> int:
 
     while True:
         try:
-            events, results = asyncio.run(watch.run_once(args.config, keys, state_path, targets))
+            run = asyncio.run(watch.run_once(args.config, keys, state_path, targets))
         except watch.DeliveryError as exc:
             # State was not saved, so the same changes are sent next run.
-            console.print(f"[red]Delivery failed: {exc}[/red]")
+            console.print(f"[red]Delivery failed: {escape(str(exc))}[/red]")
             code = 3
         else:
-            if events:
-                console.print(watch.message(events))
-                if args.dry_run:
-                    console.print("[dim]Dry run: nothing was sent.[/dim]")
-            else:
-                console.print("[dim]No changes.[/dim]")
-            code = 1 if report_errors(results) else 0
+            show_run(run, args.dry_run)
+            code = 1 if report_errors(run.results) else 0
 
         if not args.interval:
             return code
         time.sleep(args.interval)
+
+
+def show_run(run, dry_run: bool) -> None:
+    """Print what changed and where each change went."""
+    if not run.routed and not run.released:
+        console.print("[dim]No changes.[/dim]")
+        return
+
+    sent = "Would send" if dry_run else "Sent"
+    sections = [
+        (f"{sent} now", [e for e, way in run.routed if way == history.NOTIFY]),
+        ("Held for work hours", [e for e, way in run.routed if way == history.HOLD]),
+        ("History only (priority 3)", [e for e, way in run.routed if way == history.LOG]),
+        (f"{sent}: held from earlier", run.released if not dry_run or run.in_hours else []),
+    ]
+    for title, events in sections:
+        if not events:
+            continue
+        console.print(f"[bold]{title}[/bold] ({len(events)})")
+        for event in events:
+            console.print(escape(watch._line(event)))
+    if dry_run:
+        console.print("[dim]Dry run: nothing was sent; held changes stay held.[/dim]")
 
 
 def cmd_providers(args) -> int:

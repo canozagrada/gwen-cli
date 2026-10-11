@@ -18,6 +18,12 @@ components matter to you.
     [watch]
     state = ".gwen-state.json"
     unreadable_after = 2
+    work_hours = "Mon-Fri 08:00-18:00"
+
+    [[watch.rule]]
+    target = "azure/scus"
+    priority = 1
+    failover = ["azure/ncus"]
 
 The webhook URL is deliberately read from `--webhook` or `GWEN_WEBHOOK` as
 well as `[watch] webhook`, and a Telegram bot token only from
@@ -36,6 +42,7 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover - exercised only on 3.10
     import tomli as tomllib
 
+from . import policy as policies
 from . import providers
 
 DEFAULT_PATH = pathlib.Path("gwen.toml")
@@ -54,6 +61,10 @@ class WatchSettings:
     #: Consecutive failed reads before a feed is reported as unreadable, so a
     #: single timeout does not page anyone.
     unreadable_after: int = 2
+    #: SQLite history. None means next to the state file.
+    history: pathlib.Path | None = None
+    #: Priorities per target and work hours. See `policy`.
+    policy: policies.Policy = field(default_factory=policies.Policy)
 
 
 @dataclass
@@ -148,8 +159,30 @@ def _parse(data: dict, path: pathlib.Path) -> Config:
         if not isinstance(value, int) or isinstance(value, bool) or value < 1:
             raise ConfigError("[watch] unreadable_after must be a positive integer")
         watch.unreadable_after = value
+    if "history" in section:
+        watch.history = path.parent / str(section["history"])
+
+    try:
+        watch.policy = _policy(section)
+    except policies.PolicyError as exc:
+        raise ConfigError(str(exc)) from None
 
     return Config(path=path, providers=selected, filters=filters, watch=watch)
+
+
+def _policy(section: dict) -> policies.Policy:
+    rules = policies.parse_rules(_list(section, "rule", dict))
+    default = section.get("default_priority", policies.LOG)
+    if default not in policies.PRIORITIES or isinstance(default, bool):
+        raise ConfigError("[watch] default_priority must be 1, 2 or 3")
+    zone = section.get("timezone")
+    if zone is not None and not isinstance(zone, str):
+        raise ConfigError("[watch] timezone must be a name such as 'America/Chicago'")
+    hours = section.get("work_hours", policies.DEFAULT_HOURS)
+    if not isinstance(hours, str):
+        raise ConfigError("[watch] work_hours must look like 'Mon-Fri 08:00-18:00'")
+    schedule = policies.parse_schedule(hours, zone)
+    return policies.Policy(rules, default, schedule, explicit_default="default_priority" in section)
 
 
 def _table(data: dict, key: str) -> dict:

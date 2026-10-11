@@ -309,7 +309,8 @@ def test_run_once_posts_then_saves_state(tmp_path, stub_feeds):
             await runner.cleanup()
         return first, second
 
-    (events, _), (again, _) = run(scenario())
+    first, second = run(scenario())
+    events, again = first.events, second.events
     assert [e.kind for e in events] == ["incident", "worse"]
     assert again == []
     assert len(received) == 1
