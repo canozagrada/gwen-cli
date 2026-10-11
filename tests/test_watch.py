@@ -263,15 +263,16 @@ def test_unusable_state_starts_fresh(tmp_path, content):
 # --- delivery ---------------------------------------------------------------
 
 
-async def _serve(status_code: int, received: list):
+async def _serve(status_code: int, received: list, reply: str | None = None):
+    """Accept POSTs on any path, recording `(path, json body)`."""
+
     async def handle(request):
-        received.append(await request.json())
-        return web.Response(
-            status=status_code, text="nope" if status_code >= 400 else "ok"
-        )
+        received.append((request.path, await request.json()))
+        text = reply if reply is not None else ("nope" if status_code >= 400 else "ok")
+        return web.Response(status=status_code, text=text)
 
     app = web.Application()
-    app.router.add_post("/hook", handle)
+    app.router.add_post("/{tail:.*}", handle)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
@@ -301,8 +302,9 @@ def test_run_once_posts_then_saves_state(tmp_path, stub_feeds):
     async def scenario():
         runner, url = await _serve(200, received)
         try:
-            first = await watch.run_once(config.Config(), ["aws"], state_path, url)
-            second = await watch.run_once(config.Config(), ["aws"], state_path, url)
+            targets = [watch.Webhook(url)]
+            first = await watch.run_once(config.Config(), ["aws"], state_path, targets)
+            second = await watch.run_once(config.Config(), ["aws"], state_path, targets)
         finally:
             await runner.cleanup()
         return first, second
@@ -311,7 +313,7 @@ def test_run_once_posts_then_saves_state(tmp_path, stub_feeds):
     assert [e.kind for e in events] == ["incident", "worse"]
     assert again == []
     assert len(received) == 1
-    assert "EC2: Increased error rates (us-east-1)" in received[0]["text"]
+    assert "EC2: Increased error rates (us-east-1)" in received[0][1]["text"]
 
 
 def test_failed_delivery_does_not_save_state(tmp_path, stub_feeds):
@@ -322,13 +324,78 @@ def test_failed_delivery_does_not_save_state(tmp_path, stub_feeds):
     async def scenario():
         runner, url = await _serve(500, received)
         try:
-            await watch.run_once(config.Config(), ["aws"], state_path, url)
+            await watch.run_once(config.Config(), ["aws"], state_path, [watch.Webhook(url)])
         finally:
             await runner.cleanup()
 
-    with pytest.raises(RuntimeError, match="HTTP 500"):
+    with pytest.raises(watch.DeliveryError, match="HTTP 500"):
         run(scenario())
     assert not state_path.exists(), "undelivered changes must be retried next run"
+
+
+TOKEN = "123456:SECRET-token"
+EVENTS = [watch.Event("AWS", "incident", "new incident: EC2 errors", "https://x.example")]
+
+
+def send_telegram(events, status_code=200, reply=None, chat="-100200300"):
+    received: list = []
+
+    async def scenario():
+        runner, url = await _serve(status_code, received, reply)
+        try:
+            target = watch.Telegram(TOKEN, chat, api=url.rsplit("/", 1)[0])
+            await watch.deliver([target], events)
+        finally:
+            await runner.cleanup()
+
+    run(scenario())
+    return received
+
+
+def test_telegram_sends_plain_text_to_the_chat():
+    received = send_telegram(EVENTS, reply='{"ok": true}')
+
+    path, body = received[0]
+    assert path == f"/bot{TOKEN}/sendMessage"
+    assert body["chat_id"] == "-100200300"
+    assert body["text"] == watch.message(EVENTS)
+    assert body["disable_web_page_preview"] is True
+    assert "parse_mode" not in body, "plain text: vendor titles must not need escaping"
+
+
+def test_telegram_failure_reports_reason_without_the_token():
+    reply = '{"ok": false, "error_code": 401, "description": "Unauthorized"}'
+    with pytest.raises(watch.DeliveryError) as raised:
+        send_telegram(EVENTS, status_code=401, reply=reply)
+    assert "Unauthorized" in str(raised.value)
+    assert "SECRET" not in str(raised.value)
+
+
+def test_telegram_network_error_hides_the_token():
+    async def scenario():
+        # Nothing listens on port 9; the error text would normally include the URL.
+        target = watch.Telegram(TOKEN, "1", api="http://127.0.0.1:9")
+        await watch.deliver([target], EVENTS)
+
+    with pytest.raises(watch.DeliveryError) as raised:
+        run(scenario())
+    assert "SECRET" not in str(raised.value)
+
+
+def test_telegram_long_messages_are_truncated():
+    many = [watch.Event("AWS", "incident", "x" * 100) for _ in range(100)]
+    received = send_telegram(many, reply='{"ok": true}')
+    text = received[0][1]["text"]
+    assert len(text) <= watch.Telegram.LIMIT
+    assert text.endswith("(truncated)")
+
+
+def test_config_reads_telegram_chat_but_refuses_the_token(tmp_path):
+    loaded = config.load(write(tmp_path, "[watch]\ntelegram_chat = -100200300\n"))
+    assert loaded.watch.telegram_chat == "-100200300"
+
+    with pytest.raises(config.ConfigError, match="GWEN_TELEGRAM_TOKEN"):
+        config.load(write(tmp_path, '[watch]\ntelegram_token = "123:abc"\n'))
 
 
 # --- command line -----------------------------------------------------------
@@ -339,10 +406,31 @@ def invoke(monkeypatch, *argv) -> int:
     return cli.main()
 
 
-def test_watch_requires_a_webhook(tmp_path, monkeypatch):
+@pytest.fixture
+def no_targets(monkeypatch):
+    for name in ("GWEN_WEBHOOK", "GWEN_TELEGRAM_TOKEN", "GWEN_TELEGRAM_CHAT"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_watch_requires_somewhere_to_send(tmp_path, monkeypatch, no_targets):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("GWEN_WEBHOOK", raising=False)
     assert invoke(monkeypatch, "watch") == 2
+
+
+def test_telegram_token_without_chat_is_a_usage_error(tmp_path, monkeypatch, no_targets, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GWEN_TELEGRAM_TOKEN", TOKEN)
+    assert invoke(monkeypatch, "watch") == 2
+    assert "chat" in capsys.readouterr().out
+
+
+def test_telegram_target_is_built_from_env_and_flag(tmp_path, monkeypatch, no_targets):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GWEN_TELEGRAM_TOKEN", TOKEN)
+    monkeypatch.setattr("sys.argv", ["gwen", "watch", "--telegram-chat", "42"])
+    args = cli.build_parser().parse_args()
+    args.config = config.Config()
+    assert cli.watch_targets(args) == [watch.Telegram(TOKEN, "42")]
 
 
 def test_watch_dry_run_uses_config(tmp_path, monkeypatch, stub_feeds, capsys):

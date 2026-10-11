@@ -2,7 +2,7 @@
 
 Each run fetches the selected providers, reduces each one to a small snapshot
 (level, ongoing incidents, degraded components), compares it with the snapshot
-saved by the previous run, and posts the differences to a webhook. Nothing runs
+saved by the previous run, and sends the differences to a webhook or Telegram. Nothing runs
 in the background: schedule it with cron or CI, or pass `--interval`.
 
 Two rules carry over from the rest of the tool:
@@ -17,6 +17,7 @@ Two rules carry over from the rest of the tool:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import pathlib
@@ -190,12 +191,77 @@ def payload(events: list[Event]) -> dict:
     return {"text": message(events), "events": [asdict(event) for event in events]}
 
 
-async def post(url: str, body: dict) -> None:
-    async with aiohttp.ClientSession(timeout=_WEBHOOK_TIMEOUT) as session:
-        async with session.post(url, json=body) as response:
+class DeliveryError(RuntimeError):
+    """A target did not accept the message."""
+
+
+@dataclass
+class Webhook:
+    """POST `payload()` as JSON to any URL, e.g. a Slack incoming webhook."""
+
+    url: str
+    label = "webhook"
+
+    async def send(self, session: aiohttp.ClientSession, events: list[Event]) -> None:
+        async with session.post(self.url, json=payload(events)) as response:
             if response.status >= 400:
                 text = (await response.text())[:200]
-                raise RuntimeError(f"webhook returned HTTP {response.status}: {text}")
+                raise DeliveryError(f"webhook returned HTTP {response.status}: {text}")
+
+
+@dataclass
+class Telegram:
+    """Send the message from a Telegram bot to one chat.
+
+    The token is part of the request URL, so it is scrubbed from every error
+    this raises -- otherwise a failed run would print it to a CI log.
+    """
+
+    token: str
+    chat_id: str
+    label = "telegram"
+    api: str = "https://api.telegram.org"
+
+    #: Telegram rejects messages longer than this.
+    LIMIT = 4096
+
+    async def send(self, session: aiohttp.ClientSession, events: list[Event]) -> None:
+        text = message(events)
+        if len(text) > self.LIMIT:
+            text = text[: self.LIMIT - 30].rsplit("\n", 1)[0] + "\n... (truncated)"
+        body = {"chat_id": self.chat_id, "text": text, "disable_web_page_preview": True}
+        try:
+            async with session.post(
+                f"{self.api}/bot{self.token}/sendMessage", json=body
+            ) as response:
+                if response.status >= 400:
+                    try:
+                        reason = (await response.json(content_type=None)).get(
+                            "description", ""
+                        )
+                    except ValueError:
+                        reason = ""
+                    raise DeliveryError(
+                        f"Telegram returned HTTP {response.status}: {reason}"
+                    )
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            raise DeliveryError(
+                f"Telegram request failed: {str(exc).replace(self.token, '<token>')}"
+            ) from None
+
+
+async def deliver(targets: list, events: list[Event]) -> None:
+    """Send *events* to every target. Raises `DeliveryError` if any fails."""
+    async with aiohttp.ClientSession(timeout=_WEBHOOK_TIMEOUT) as session:
+        for target in targets:
+            try:
+                await target.send(session, events)
+            except DeliveryError:
+                raise
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                raise DeliveryError(
+                    f"{target.label} request failed: {exc or 'timed out'}"
+                ) from None
 
 
 def load_state(path: pathlib.Path) -> dict:
@@ -229,9 +295,13 @@ async def run_once(
     config: Config,
     keys: list[str],
     state_path: pathlib.Path,
-    webhook: str | None,
+    targets: list,
 ) -> tuple[list[Event], list[ProviderStatus]]:
-    """Fetch, compare, deliver, then save. Raises if delivery fails."""
+    """Fetch, compare, deliver, then save. Raises `DeliveryError` if delivery fails.
+
+    With several targets, one failing means all are retried next run, so the
+    others may see a message twice. Duplicates beat a silently lost alert.
+    """
     results = await providers.gather(keys, days=0)
     events, state = evaluate(
         list(zip(keys, results)),
@@ -239,7 +309,7 @@ async def run_once(
         config.filters,
         config.watch.unreadable_after,
     )
-    if events and webhook:
-        await post(webhook, payload(events))
+    if events and targets:
+        await deliver(targets, events)
     save_state(state_path, state)
     return events, results

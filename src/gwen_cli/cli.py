@@ -10,7 +10,6 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
-import aiohttp
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -238,35 +237,61 @@ def cmd_maintenance(args) -> int:
     return 1 if report_errors(results) else 0
 
 
-def cmd_watch(args) -> int:
+def watch_targets(args) -> list:
+    """Build delivery targets from flags, environment and config.
+
+    Secrets (the webhook URL, the bot token) can come from the environment so
+    they stay out of shell history and committed config.
+    """
     settings = args.config.watch
+    targets: list = []
+
     webhook = args.webhook or os.environ.get("GWEN_WEBHOOK") or settings.webhook
-    if args.dry_run:
-        webhook = None
-    elif not webhook:
-        console.print(
-            "[red]No webhook: pass --webhook, set GWEN_WEBHOOK, or use --dry-run.[/red]"
+    if webhook:
+        if not webhook.startswith(("https://", "http://")):
+            raise ValueError("Webhook must be an http(s) URL.")
+        targets.append(watch.Webhook(webhook))
+
+    token = os.environ.get("GWEN_TELEGRAM_TOKEN")
+    chat = args.telegram_chat or os.environ.get("GWEN_TELEGRAM_CHAT") or settings.telegram_chat
+    if token and chat:
+        targets.append(watch.Telegram(token, chat))
+    elif token or chat:
+        raise ValueError(
+            "Telegram needs both GWEN_TELEGRAM_TOKEN and a chat "
+            "(--telegram-chat, GWEN_TELEGRAM_CHAT or [watch] telegram_chat)."
         )
+    return targets
+
+
+def cmd_watch(args) -> int:
+    try:
+        targets = [] if args.dry_run else watch_targets(args)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
         return 2
-    elif not webhook.startswith(("https://", "http://")):
-        console.print("[red]Webhook must be an http(s) URL.[/red]")
+    if not targets and not args.dry_run:
+        console.print(
+            "[red]Nowhere to send changes: set GWEN_WEBHOOK or GWEN_TELEGRAM_TOKEN "
+            "(see 'gwen watch --help'), or use --dry-run.[/red]"
+        )
         return 2
 
     keys = watch.selected_keys(args.config, [args.provider] if args.provider else None)
-    state_path = args.state or settings.state
+    state_path = args.state or args.config.watch.state
 
     while True:
         try:
-            events, results = asyncio.run(watch.run_once(args.config, keys, state_path, webhook))
-        except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as exc:
+            events, results = asyncio.run(watch.run_once(args.config, keys, state_path, targets))
+        except watch.DeliveryError as exc:
             # State was not saved, so the same changes are sent next run.
-            console.print(f"[red]Webhook delivery failed: {exc}[/red]")
+            console.print(f"[red]Delivery failed: {exc}[/red]")
             code = 3
         else:
             if events:
                 console.print(watch.message(events))
                 if args.dry_run:
-                    console.print("[dim]Dry run: nothing was posted.[/dim]")
+                    console.print("[dim]Dry run: nothing was sent.[/dim]")
             else:
                 console.print("[dim]No changes.[/dim]")
             code = 1 if report_errors(results) else 0
@@ -334,8 +359,12 @@ def build_parser() -> argparse.ArgumentParser:
     maintenance = add("maintenance", "Show scheduled maintenance windows")
     maintenance.set_defaults(func=cmd_maintenance)
 
-    watching = add("watch", "Post status changes to a webhook")
+    watching = add("watch", "Send status changes to a webhook or Telegram")
     watching.add_argument("--webhook", help="URL to POST changes to (or set GWEN_WEBHOOK)")
+    watching.add_argument(
+        "--telegram-chat",
+        help="Telegram chat id to message; the bot token comes from GWEN_TELEGRAM_TOKEN",
+    )
     watching.add_argument(
         "--state", type=pathlib.Path, help="State file (default: .gwen-state.json)"
     )
@@ -344,7 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Keep running, checking every N seconds (minimum 60). Default: run once",
     )
     watching.add_argument(
-        "--dry-run", action="store_true", help="Print changes instead of posting them"
+        "--dry-run", action="store_true", help="Print changes instead of sending them"
     )
     watching.set_defaults(func=cmd_watch)
 

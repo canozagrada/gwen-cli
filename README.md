@@ -89,25 +89,47 @@ match = ["(FRA)", "(AMS)"]
 [watch]
 state = ".gwen-state.json"     # relative to this file
 unreadable_after = 2           # failed reads in a row before a feed is reported
+telegram_chat = "987654321"    # bot token comes from GWEN_TELEGRAM_TOKEN
 ```
 
 Every command respects `providers` and the extra Statuspage vendors. Filters only apply to `gwen watch`; `gwen status` still shows each provider's whole picture.
 
 ## Alerts: `gwen watch`
 
-`gwen watch` compares the current state with the previous run and posts only what changed: new and cleared incidents, status level changes, filtered components degrading or recovering, and feeds that become unreadable or stale (including Azure's `lastBuildDate` check). Run it from cron or CI; nothing stays running unless you ask for it.
+`gwen watch` compares the current state with the previous run and sends only what changed: new and cleared incidents, status level changes, filtered components degrading or recovering, and feeds that become unreadable or stale (including Azure's `lastBuildDate` check). Run it from cron or CI; nothing stays running unless you ask for it.
+
+It can send to Telegram, to any webhook, or both.
 
 ```bash
-gwen watch --dry-run                          # print what would be sent
-GWEN_WEBHOOK=https://hooks.slack.com/... gwen watch
-gwen watch --webhook https://... --interval 300   # keep running, every 5 minutes
+gwen watch --dry-run                              # print what would be sent
+gwen watch --interval 300                         # keep running, every 5 minutes
 ```
+
+### Telegram
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, and follow the prompts. It replies with a token like `123456789:AA...`.
+2. Send your new bot any message (or add it to a group and post there), so it is allowed to message you back.
+3. Find the chat id: open `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser and copy `"chat":{"id": ...}`. Group ids are negative, e.g. `-1001234567890`.
+4. Run it:
+
+```bash
+export GWEN_TELEGRAM_TOKEN=123456789:AA...
+gwen watch --telegram-chat 987654321
+```
+
+The chat id can also go in `GWEN_TELEGRAM_CHAT` or in `gwen.toml` as `[watch] telegram_chat`. The token is only read from `GWEN_TELEGRAM_TOKEN`: anyone with it controls your bot, so it never belongs in a committed file, and GWEN keeps it out of its error messages.
 
 ```cron
-*/5 * * * * cd /srv/gwen && GWEN_WEBHOOK=https://hooks.slack.com/... gwen watch
+*/5 * * * * cd /srv/gwen && GWEN_TELEGRAM_TOKEN=123456789:AA... gwen watch
 ```
 
-The webhook receives a JSON `POST` with a `text` field, which Slack and Mattermost incoming webhooks display as-is, and an `events` list for anything that wants structure:
+### Webhook
+
+```bash
+GWEN_WEBHOOK=https://example.com/hooks/gwen gwen watch
+```
+
+The webhook receives a JSON `POST` with a `text` field, which Slack, Mattermost and Rocket.Chat incoming webhooks display as-is, and an `events` list for anything that wants structure:
 
 ```json
 {
@@ -121,15 +143,15 @@ The webhook receives a JSON `POST` with a `text` field, which Slack and Mattermo
 
 Event kinds: `incident`, `resolved`, `worse`, `better`, `degraded`, `recovered`, `unreadable`, `readable`.
 
-How it behaves:
+### How it behaves
 
-- **The first run reports anything already wrong**, so starting to watch never hides an ongoing incident. After that, an unchanged state posts nothing.
+- **The first run reports anything already wrong**, so starting to watch never hides an ongoing incident. After that, an unchanged state sends nothing.
 - **One failed read is not news.** A feed is reported unreadable after `unreadable_after` consecutive failures (default 2), once, and again when it recovers. In between, the last good state is kept, so a timeout never makes an incident look resolved.
-- **Undelivered changes are retried.** State is saved only after the webhook accepts the message, so if delivery fails (exit code `3`) the next run sends the same changes again.
-- **The webhook URL is a secret.** Prefer `GWEN_WEBHOOK` or `--webhook` over putting it in `gwen.toml`, which is meant to be committed.
+- **Undelivered changes are retried.** State is saved only after every target accepts the message, so if delivery fails (exit code `3`) the next run sends the same changes again. With two targets, a failure on one means the other may get the message twice; a duplicate is better than a lost alert.
+- **Keep secrets in the environment.** Prefer `GWEN_WEBHOOK` and `GWEN_TELEGRAM_TOKEN` to putting anything secret in `gwen.toml`, which is meant to be committed.
 - **Keep the state file between runs.** In CI, cache or persist `.gwen-state.json`; without it every run is a first run.
 
-Exit codes: `0` ran normally, `1` at least one feed could not be read this run, `2` bad arguments or config, `3` webhook delivery failed.
+Exit codes: `0` ran normally, `1` at least one feed could not be read this run, `2` bad arguments or config, `3` delivery failed.
 
 ## What each provider actually publishes
 

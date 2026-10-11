@@ -25,5 +25,8 @@ match = ["(FRA)", "(AMS)"]
 state = ".gwen-state.json"
 # Consecutive failed reads before a feed is reported as unreadable.
 unreadable_after = 2
-# The webhook URL is a secret: prefer GWEN_WEBHOOK or --webhook to putting it here.
-# webhook = "https://hooks.slack.com/services/..."
+# Telegram chat to message (see README). The bot token is a secret and is only
+# read from the GWEN_TELEGRAM_TOKEN environment variable, never from this file.
+# telegram_chat = "987654321"
+# Any webhook. Its URL is usually a secret too: prefer GWEN_WEBHOOK or --webhook.
+# webhook = "https://example.com/hooks/gwen"

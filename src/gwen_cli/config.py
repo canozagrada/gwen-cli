@@ -20,7 +20,8 @@ components matter to you.
     unreadable_after = 2
 
 The webhook URL is deliberately read from `--webhook` or `GWEN_WEBHOOK` as
-well as `[watch] webhook`, because webhook URLs are secrets and the config file
+well as `[watch] webhook`, and a Telegram bot token only from
+`GWEN_TELEGRAM_TOKEN`, because both are secrets and the config file
 is meant to be committed.
 """
 
@@ -47,6 +48,8 @@ class ConfigError(ValueError):
 @dataclass
 class WatchSettings:
     webhook: str | None = None
+    #: Telegram chat to message. Not secret; the bot token is.
+    telegram_chat: str | None = None
     state: pathlib.Path = pathlib.Path(".gwen-state.json")
     #: Consecutive failed reads before a feed is reported as unreadable, so a
     #: single timeout does not page anyone.
@@ -125,7 +128,18 @@ def _parse(data: dict, path: pathlib.Path) -> Config:
             filters[key] = terms
 
     section = _table(data, "watch")
-    watch = WatchSettings(webhook=section.get("webhook") or None)
+    if "telegram_token" in section:
+        raise ConfigError(
+            "[watch] telegram_token is not read from the config file; "
+            "set the GWEN_TELEGRAM_TOKEN environment variable instead"
+        )
+    chat = section.get("telegram_chat")
+    if chat is not None and (isinstance(chat, bool) or not isinstance(chat, (str, int))):
+        raise ConfigError("[watch] telegram_chat must be a chat id or @channel name")
+    watch = WatchSettings(
+        webhook=section.get("webhook") or None,
+        telegram_chat=str(chat) if chat not in (None, "") else None,
+    )
     if "state" in section:
         # Relative to the config file, so cron jobs don't depend on their cwd.
         watch.state = path.parent / str(section["state"])
