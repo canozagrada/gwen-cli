@@ -17,10 +17,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from xml.etree.ElementTree import ParseError
 
 import aiohttp
 from defusedxml.ElementTree import fromstring as xml_fromstring
-from xml.etree.ElementTree import ParseError
 
 from . import __version__
 
@@ -504,6 +504,20 @@ PROVIDERS: dict[str, Provider] = {
         StatuspageProvider("atlassian", "Atlassian", "https://status.atlassian.com"),
     )
 }
+
+
+_BUILT_IN = frozenset(PROVIDERS)
+
+
+def register(provider: Provider) -> None:
+    """Add a provider, e.g. a Statuspage vendor listed in `gwen.toml`.
+
+    Built-in providers cannot be replaced; a provider added earlier by config
+    can, so loading the same config twice is harmless.
+    """
+    if provider.key in _BUILT_IN:
+        raise ValueError(f"provider {provider.key!r} is built in")
+    PROVIDERS[provider.key] = provider
 
 
 def resolve(name: str) -> Provider:

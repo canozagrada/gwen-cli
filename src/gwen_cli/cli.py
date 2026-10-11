@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+import pathlib
+import time
 from collections import defaultdict
 from datetime import datetime
 
@@ -11,7 +14,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from . import providers, regions
+from . import config, providers, regions, watch
 from .providers import CRITICAL, MAJOR, MINOR, OK, UNKNOWN, ProviderStatus
 
 console = Console()
@@ -45,7 +48,7 @@ def report_errors(results: list[ProviderStatus]) -> bool:
 
 
 def cmd_status(args) -> int:
-    names = [args.provider] if args.provider else None
+    names = [args.provider] if args.provider else args.config.providers
     results = fetch(names, days=args.days)
 
     if args.provider:
@@ -139,7 +142,7 @@ def show_detail(result: ProviderStatus) -> None:
 
 
 def cmd_incidents(args) -> int:
-    names = [args.provider] if args.provider else None
+    names = [args.provider] if args.provider else args.config.providers
     results = fetch(names, days=args.days if args.show_recent else 0)
 
     found = False
@@ -191,7 +194,7 @@ def cmd_incidents(args) -> int:
 
 
 def cmd_maintenance(args) -> int:
-    names = [args.provider] if args.provider else None
+    names = [args.provider] if args.provider else args.config.providers
     results = fetch(names, days=0)
 
     found = False
@@ -234,6 +237,70 @@ def cmd_maintenance(args) -> int:
     return 1 if report_errors(results) else 0
 
 
+def watch_targets(args) -> list:
+    """Build delivery targets from flags, environment and config.
+
+    Secrets (the webhook URL, the bot token) can come from the environment so
+    they stay out of shell history and committed config.
+    """
+    settings = args.config.watch
+    targets: list = []
+
+    webhook = args.webhook or os.environ.get("GWEN_WEBHOOK") or settings.webhook
+    if webhook:
+        if not webhook.startswith(("https://", "http://")):
+            raise ValueError("Webhook must be an http(s) URL.")
+        targets.append(watch.Webhook(webhook))
+
+    token = os.environ.get("GWEN_TELEGRAM_TOKEN")
+    chat = args.telegram_chat or os.environ.get("GWEN_TELEGRAM_CHAT") or settings.telegram_chat
+    if token and chat:
+        targets.append(watch.Telegram(token, chat))
+    elif token or chat:
+        raise ValueError(
+            "Telegram needs both GWEN_TELEGRAM_TOKEN and a chat "
+            "(--telegram-chat, GWEN_TELEGRAM_CHAT or [watch] telegram_chat)."
+        )
+    return targets
+
+
+def cmd_watch(args) -> int:
+    try:
+        targets = [] if args.dry_run else watch_targets(args)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
+    if not targets and not args.dry_run:
+        console.print(
+            "[red]Nowhere to send changes: set GWEN_WEBHOOK or GWEN_TELEGRAM_TOKEN "
+            "(see 'gwen watch --help'), or use --dry-run.[/red]"
+        )
+        return 2
+
+    keys = watch.selected_keys(args.config, [args.provider] if args.provider else None)
+    state_path = args.state or args.config.watch.state
+
+    while True:
+        try:
+            events, results = asyncio.run(watch.run_once(args.config, keys, state_path, targets))
+        except watch.DeliveryError as exc:
+            # State was not saved, so the same changes are sent next run.
+            console.print(f"[red]Delivery failed: {exc}[/red]")
+            code = 3
+        else:
+            if events:
+                console.print(watch.message(events))
+                if args.dry_run:
+                    console.print("[dim]Dry run: nothing was sent.[/dim]")
+            else:
+                console.print("[dim]No changes.[/dim]")
+            code = 1 if report_errors(results) else 0
+
+        if not args.interval:
+            return code
+        time.sleep(args.interval)
+
+
 def cmd_providers(args) -> int:
     def mark(supported: bool) -> str:
         return "yes" if supported else DASH
@@ -259,9 +326,19 @@ def cmd_providers(args) -> int:
     return 0
 
 
+def _interval(value: str) -> int:
+    seconds = int(value)
+    if seconds and seconds < 60:
+        raise argparse.ArgumentTypeError("must be at least 60 seconds")
+    return seconds
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gwen", description="Monitor public cloud status feeds."
+    )
+    parser.add_argument(
+        "--config", type=pathlib.Path, help="Config file (default: ./gwen.toml if present)"
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -282,6 +359,24 @@ def build_parser() -> argparse.ArgumentParser:
     maintenance = add("maintenance", "Show scheduled maintenance windows")
     maintenance.set_defaults(func=cmd_maintenance)
 
+    watching = add("watch", "Send status changes to a webhook or Telegram")
+    watching.add_argument("--webhook", help="URL to POST changes to (or set GWEN_WEBHOOK)")
+    watching.add_argument(
+        "--telegram-chat",
+        help="Telegram chat id to message; the bot token comes from GWEN_TELEGRAM_TOKEN",
+    )
+    watching.add_argument(
+        "--state", type=pathlib.Path, help="State file (default: .gwen-state.json)"
+    )
+    watching.add_argument(
+        "--interval", type=_interval, default=0,
+        help="Keep running, checking every N seconds (minimum 60). Default: run once",
+    )
+    watching.add_argument(
+        "--dry-run", action="store_true", help="Print changes instead of sending them"
+    )
+    watching.set_defaults(func=cmd_watch)
+
     listing = subparsers.add_parser("providers", help="List available providers")
     listing.set_defaults(func=cmd_providers)
 
@@ -295,6 +390,12 @@ def main() -> int:
     if not args.command:
         parser.print_help()
         return 0
+
+    try:
+        args.config = config.load(args.config)
+    except config.ConfigError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
 
     try:
         return args.func(args)

@@ -29,6 +29,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     "rich>=13.0.0",
     "defusedxml>=0.7.1",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 # Dev dependencies are declared twice on purpose: `dependency-groups` is what

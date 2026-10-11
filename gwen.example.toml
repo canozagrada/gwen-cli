@@ -1,0 +1,32 @@
+# Copy to gwen.toml and trim to what you actually depend on.
+# Every key is optional; without this file GWEN watches all built-in providers.
+
+# Providers used by every command when none is named on the command line.
+# Built in: cloudflare, aws, azure, gcp, github, datadog, atlassian.
+providers = ["cloudflare", "aws", "github", "twilio"]
+
+# Any other vendor that runs Atlassian Statuspage (has /api/v2/summary.json).
+[[statuspage]]
+key = "twilio"
+label = "Twilio"
+url = "https://status.twilio.com"
+
+# Filters apply to `gwen watch` only. An incident counts when its title or
+# affected components contain one of these strings (case-insensitive).
+[filters.aws]
+match = ["us-east-1", "eu-west-1"]
+
+# Filtered providers also get alerts when matching components degrade or recover.
+[filters.cloudflare]
+match = ["(FRA)", "(AMS)"]
+
+[watch]
+# Where the previous run's state is kept, relative to this file.
+state = ".gwen-state.json"
+# Consecutive failed reads before a feed is reported as unreadable.
+unreadable_after = 2
+# Telegram chat to message (see README). The bot token is a secret and is only
+# read from the GWEN_TELEGRAM_TOKEN environment variable, never from this file.
+# telegram_chat = "987654321"
+# Any webhook. Its URL is usually a secret too: prefer GWEN_WEBHOOK or --webhook.
+# webhook = "https://example.com/hooks/gwen"
