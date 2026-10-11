@@ -48,6 +48,7 @@ Desktop.ini
 # Project specific
 *.old.md
 
-# gwen watch state
+# gwen watch state and history
 .gwen-state.json
 .gwen-state.json.tmp
+.gwen-history.sqlite

@@ -47,6 +47,9 @@ class Incident:
     resolved_at: datetime | None = None
     url: str = ""
     components: list[str] = field(default_factory=list)
+    #: Region codes the provider itself says are affected, e.g. "us-east-1".
+    #: Empty when the feed only names regions in free text, or not at all.
+    regions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -305,6 +308,11 @@ class GCPProvider(Provider):
                 resolved_at=ended,
                 url=self.SITE + str(item.get("uri", "")).lstrip("/"),
                 components=[p.get("title", "") for p in item.get("affected_products", [])],
+                regions=[
+                    str(location.get("id"))
+                    for location in item.get("currently_affected_locations") or []
+                    if location.get("id")
+                ],
             )
             if ended is None:
                 ongoing.append(incident)
@@ -395,6 +403,7 @@ class AWSProvider(Provider):
                         started_at=started,
                         url="https://health.aws.amazon.com/health/status",
                         components=[service],
+                        regions=_aws_region(event),
                     ),
                     self._STATUS.get(code, MINOR),
                 )
@@ -421,6 +430,13 @@ class AWSProvider(Provider):
                 )
             )
         return recent
+
+
+def _aws_region(event: dict) -> list[str]:
+    """The region code from an AWS Health ARN: arn:aws:health:<region>::event/..."""
+    parts = str(event.get("arn", "")).split(":")
+    region = parts[3] if len(parts) > 3 else ""
+    return [region] if region and region != "global" else []
 
 
 class AzureProvider(Provider):
