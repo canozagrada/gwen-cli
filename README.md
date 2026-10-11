@@ -58,6 +58,9 @@ gwen incidents --show-recent      # include resolved, last 14 days
 gwen incidents --days 30 --show-recent
 gwen maintenance                  # upcoming windows, grouped by region
 gwen providers                    # what each provider publishes
+gwen regions azure                # region names usable in targets, e.g. azure/scus
+gwen watch                        # send changes to Telegram or a webhook (see Alerts)
+gwen investigate azure/scus       # what else happened around a target's last problem
 ```
 
 Any command takes an optional provider name: `cloudflare`, `aws`, `azure`, `gcp`, `github`, `datadog`, `atlassian`.
@@ -198,6 +201,32 @@ priority = 2
 
 **History.** Every change, at every priority, is recorded in `.gwen-history.sqlite` next to the state file (or `[watch] history = "path"`), with how it was routed: `notify`, `hold` or `log`. It is plain SQLite, so any SQLite tool can read it.
 
+`gwen regions azure` lists every region name GWEN recognises for a provider, with Azure's paired regions, which are the natural `failover` targets.
+
+### Investigating: `gwen investigate`
+
+When a target has a problem, `gwen investigate` lays out everything the history recorded around it, including priority-3 changes nobody was alerted about:
+
+```bash
+gwen investigate azure/scus                          # around its most recent problem
+gwen investigate azure/scus --at "2026-10-11 14:00"  # around a time (local, or ISO 8601)
+gwen investigate aws/us-east-1 --window 6h           # default window: 2h either side
+```
+
+```
+azure/southcentralus around Mon 2026-10-12 10:00 (±2h): 6 recorded changes
+ When       │       │ P │ Provider   │ Change                                  │ Related as
+ Mon 08:30  │ -1h30m│ 3 │ GCP        │ new incident: Networking in us-south1   │ area
+ Mon 09:30  │ -30m  │ 2 │ Azure      │ new incident: Latency in North Central… │ failover
+ Mon 09:50  │ -10m  │ 3 │ Cloudflare │ degraded: Dallas, TX - (DFW)            │ area
+ Mon 10:00  │ +0m   │ 1 │ Azure      │ new incident: Outage in South Central US│ target
+ Mon 10:20  │ +20m  │ 3 │ Azure      │ new incident: Storage in West Europe    │ provider
+ Mon 10:45  │ +45m  │ 3 │ AWS        │ new incident: Errors (Tokyo)            │ other
+2 related changes were priority 3 and not sent at the time.
+```
+
+Each change is related to the target as `target` (the target itself), `failover` (a region in its rule's `failover` list), `provider` (another region of the same provider), `area` (another provider in the same part of the world) or `other`. It only sees what `gwen watch` recorded, so it needs `watch` running on a schedule beforehand.
+
 ### How it behaves
 
 - **The first run reports anything already wrong**, so starting to watch never hides an ongoing incident. After that, an unchanged state sends nothing.
@@ -246,7 +275,8 @@ src/gwen_cli/
 ├── targets.py      # provider/region targets and the Azure, AWS and GCP region lists
 ├── policy.py       # priority rules and work hours
 ├── watch.py        # change detection, routing and delivery for `gwen watch`
-└── history.py      # the SQLite history of every change
+├── history.py      # the SQLite history of every change
+└── investigate.py  # relating recorded changes around a problem
 ```
 
 `providers.gather()` opens a single connection pool and fetches every provider concurrently. Each returns a `ProviderStatus`, so `cli.py` never needs to know how a given vendor publishes its data.

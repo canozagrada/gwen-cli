@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from . import config, history, providers, regions, watch
+from . import config, history, investigate, providers, regions, targets, watch
 from .providers import CRITICAL, MAJOR, MINOR, OK, UNKNOWN, ProviderStatus
 
 console = Console()
@@ -320,6 +320,127 @@ def show_run(run, dry_run: bool) -> None:
         console.print("[dim]Dry run: nothing was sent; held changes stay held.[/dim]")
 
 
+RELATION_STYLE = {
+    investigate.TARGET: "bold red",
+    investigate.FAILOVER: "bold yellow",
+    investigate.PROVIDER: "yellow",
+    investigate.AREA: "cyan",
+    investigate.OTHER: "dim",
+}
+
+
+def _offset(delta) -> str:
+    minutes = round(delta.total_seconds() / 60)
+    sign = "-" if minutes < 0 else "+"
+    hours, minutes = divmod(abs(minutes), 60)
+    return f"{sign}{hours}h{minutes:02d}m" if hours else f"{sign}{minutes}m"
+
+
+def cmd_investigate(args) -> int:
+    try:
+        target = targets.parse(args.target)
+        window = investigate.parse_window(args.window)
+        at = investigate.parse_moment(args.at) if args.at else None
+    except ValueError as exc:  # TargetError is a ValueError
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        return 2
+
+    path = watch.history_path(args.config, args.state)
+    if not path.exists():
+        console.print(
+            f"[yellow]No history at {escape(str(path))} yet.[/yellow] "
+            "'gwen watch' records it; run that on a schedule first."
+        )
+        return 0
+
+    moment, findings = investigate.investigate(path, target, args.config.watch.policy, at, window)
+    if moment is None:
+        console.print(f"No recorded problems for {target} in {escape(str(path))}.")
+        console.print("[dim]Pass --at '2026-10-11 14:00' to look around a time instead.[/dim]")
+        return 0
+
+    local = moment.astimezone()
+    console.print(
+        f"\n[bold]{target}[/bold] around {local:%a %Y-%m-%d %H:%M} "
+        f"(±{args.window}): {len(findings)} recorded change{'s' if len(findings) != 1 else ''}"
+    )
+    if not findings:
+        return 0
+
+    table = Table(box=box.ROUNDED)
+    table.add_column("When", no_wrap=True)
+    table.add_column("", justify="right", style="dim", no_wrap=True)
+    table.add_column("P", justify="center")
+    table.add_column("Provider", style="cyan", no_wrap=True)
+    table.add_column("Change")
+    table.add_column("Related as", no_wrap=True)
+    for finding in findings:
+        row = finding.row
+        style = RELATION_STYLE[finding.relation]
+        table.add_row(
+            f"{row['at'].astimezone():%a %H:%M}",
+            _offset(finding.offset),
+            str(row["priority"]),
+            escape(row["provider"]),
+            escape(row["summary"]),
+            f"[{style}]{finding.relation}[/{style}]",
+        )
+    console.print(table)
+
+    counts = {r: sum(1 for f in findings if f.relation == r) for r in investigate.RELATIONS}
+    console.print(
+        "[dim]"
+        + ", ".join(f"{n} {r}" for r, n in counts.items() if n)
+        + "[/dim]"
+    )
+    quiet = [
+        f for f in findings
+        if f.row["route"] == history.LOG and f.relation != investigate.OTHER
+    ]
+    if quiet:
+        console.print(
+            f"[yellow]{len(quiet)} related change{'s were' if len(quiet) != 1 else ' was'} "
+            "priority 3 and not sent at the time.[/yellow]"
+        )
+    return 0
+
+
+def cmd_regions(args) -> int:
+    if not args.provider:
+        console.print("Region lists are built in for: " + ", ".join(sorted(targets.CATALOGS)))
+        console.print(
+            "[dim]Other providers match a region as a word in incident and component names, "
+            "e.g. cloudflare/dfw. Run 'gwen regions azure' for a list.[/dim]"
+        )
+        return 0
+
+    key = providers.resolve(args.provider).key
+    catalog = targets.CATALOGS.get(key)
+    if catalog is None:
+        console.print(
+            f"{providers.PROVIDERS[key].label} has no built-in region list. A target such as "
+            f"{key}/dfw matches 'dfw' as a whole word in incident and component names."
+        )
+        return 0
+
+    table = Table(title=f"{providers.PROVIDERS[key].label} regions", box=box.ROUNDED)
+    table.add_column("Target", style="cyan", no_wrap=True)
+    table.add_column("Also accepted")
+    table.add_column("Geography")
+    if key == "azure":
+        table.add_column("Paired with")
+    for region in catalog.values():
+        names = [n for n in (*region.aliases, *region.names) if n != region.code]
+        cells = [f"{key}/{region.code}", ", ".join(names), region.geo]
+        if key == "azure":
+            cells.append(region.pair or "")
+        table.add_row(*cells)
+    console.print(table)
+    if key == "azure":
+        console.print("[dim]Paired regions are natural failover targets.[/dim]")
+    return 0
+
+
 def cmd_providers(args) -> int:
     def mark(supported: bool) -> str:
         return "yes" if supported else DASH
@@ -395,6 +516,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Print changes instead of sending them"
     )
     watching.set_defaults(func=cmd_watch)
+
+    looking = subparsers.add_parser(
+        "investigate", help="Show recorded changes around a target's last problem"
+    )
+    looking.add_argument("target", help="e.g. azure/scus, aws/us-east-1, github")
+    looking.add_argument("--at", help="Look around this time instead, e.g. '2026-10-11 14:00'")
+    looking.add_argument("--window", default="2h", help="How far either side (default: 2h)")
+    looking.add_argument(
+        "--state", type=pathlib.Path, help="State file the history sits beside"
+    )
+    looking.set_defaults(func=cmd_investigate)
+
+    listing_regions = subparsers.add_parser("regions", help="List region names for targets")
+    listing_regions.add_argument("provider", nargs="?", help="e.g. azure")
+    listing_regions.set_defaults(func=cmd_regions)
 
     listing = subparsers.add_parser("providers", help="List available providers")
     listing.set_defaults(func=cmd_providers)
