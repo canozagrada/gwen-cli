@@ -18,6 +18,7 @@ Two rules carry over from the rest of the tool:
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import os
 import pathlib
@@ -27,7 +28,7 @@ import aiohttp
 
 from . import providers
 from .config import Config
-from .providers import MINOR, OK, SEVERITY, UNKNOWN, ProviderStatus
+from .providers import CRITICAL, MAJOR, MINOR, OK, SEVERITY, UNKNOWN, ProviderStatus
 
 STATE_VERSION = 1
 _WEBHOOK_TIMEOUT = aiohttp.ClientTimeout(total=15, connect=5)
@@ -39,6 +40,11 @@ class Event:
     kind: str
     summary: str
     url: str = ""
+    #: What the event is about, without the "new incident:" style prefix.
+    title: str = ""
+    #: The provider's level after this run, and before it for worse/better.
+    level: str = ""
+    previous: str = ""
 
 
 def snapshot(result: ProviderStatus, terms: list[str] | None) -> dict:
@@ -116,59 +122,89 @@ def evaluate(
                         result.name,
                         "unreadable",
                         f"status feed unreadable ({failures} failed reads): {result.error}",
+                        title=result.error,
+                        level=UNKNOWN,
                     )
                 )
             continue
 
         now = snapshot(result, filters.get(key))
         state[key] = {**now, "failures": 0, "unreadable": False}
-
-        if before.get("unreadable"):
-            events.append(Event(result.name, "readable", "status feed readable again"))
-
-        for ident, incident in now["incidents"].items():
-            if ident not in before["incidents"]:
-                events.append(
-                    Event(
-                        result.name,
-                        "incident",
-                        f"new incident: {incident['name']}",
-                        incident["url"],
-                    )
-                )
-        for ident, incident in before["incidents"].items():
-            if ident not in now["incidents"]:
-                events.append(
-                    Event(
-                        result.name,
-                        "resolved",
-                        f"no longer listed: {incident['name']}",
-                        incident["url"],
-                    )
-                )
-
-        newly = sorted(
-            c for c, s in now["degraded"].items() if before["degraded"].get(c) != s
-        )
-        healed = sorted(c for c in before["degraded"] if c not in now["degraded"])
-        if newly:
-            events.append(Event(result.name, "degraded", "degraded: " + _names(newly)))
-        if healed:
-            events.append(
-                Event(result.name, "recovered", "recovered: " + _names(healed))
-            )
-
-        if now["level"] != before["level"]:
-            worse = SEVERITY[now["level"]] > SEVERITY[before["level"]]
-            events.append(
-                Event(
-                    result.name,
-                    "worse" if worse else "better",
-                    f"status {before['level']} -> {now['level']}",
-                )
-            )
+        events.extend(_changes(result.name, before, now))
 
     return events, state
+
+
+def _changes(name: str, before: dict, now: dict) -> list[Event]:
+    """Events for one provider whose feed was read successfully."""
+    level = now["level"]
+    found: list[Event] = []
+
+    if before.get("unreadable"):
+        found.append(Event(name, "readable", "status feed readable again", level=level))
+
+    for ident, incident in now["incidents"].items():
+        if ident not in before["incidents"]:
+            found.append(
+                Event(
+                    name,
+                    "incident",
+                    f"new incident: {incident['name']}",
+                    incident["url"],
+                    title=incident["name"],
+                    level=level,
+                )
+            )
+    for ident, incident in before["incidents"].items():
+        if ident not in now["incidents"]:
+            found.append(
+                Event(
+                    name,
+                    "resolved",
+                    f"no longer listed: {incident['name']}",
+                    incident["url"],
+                    title=incident["name"],
+                    level=level,
+                )
+            )
+
+    newly = sorted(
+        c for c, s in now["degraded"].items() if before["degraded"].get(c) != s
+    )
+    healed = sorted(c for c in before["degraded"] if c not in now["degraded"])
+    if newly:
+        found.append(
+            Event(
+                name,
+                "degraded",
+                "degraded: " + _names(newly),
+                title=_names(newly),
+                level=level,
+            )
+        )
+    if healed:
+        found.append(
+            Event(
+                name,
+                "recovered",
+                "recovered: " + _names(healed),
+                title=_names(healed),
+                level=level,
+            )
+        )
+
+    if level != before["level"]:
+        worse = SEVERITY[level] > SEVERITY[before["level"]]
+        found.append(
+            Event(
+                name,
+                "worse" if worse else "better",
+                f"status {before['level']} -> {level}",
+                level=level,
+                previous=before["level"],
+            )
+        )
+    return found
 
 
 def _names(items: list[str], limit: int = 5) -> str:
@@ -176,14 +212,94 @@ def _names(items: list[str], limit: int = 5) -> str:
     return shown if len(items) <= limit else f"{shown} and {len(items) - limit} more"
 
 
+def _count(events: list[Event]) -> str:
+    return f"{len(events)} change{'s' if len(events) != 1 else ''}"
+
+
 def message(events: list[Event]) -> str:
-    lines = [f"gwen: {len(events)} change{'s' if len(events) != 1 else ''}"]
+    """Plain text, one line per event: for the console and webhooks."""
+    lines = [f"gwen: {_count(events)}"]
     for event in events:
         line = f"- {event.provider}: {event.summary}"
         if event.url:
             line += f" ({event.url})"
         lines.append(line)
     return "\n".join(lines)
+
+
+DOTS = {OK: "🟢", MINOR: "🟡", MAJOR: "🟠", CRITICAL: "🔴", UNKNOWN: "⚪"}
+#: Message order: known outages first, then feeds we cannot see, then good news.
+_RANK = {CRITICAL: 4, MAJOR: 3, MINOR: 2, UNKNOWN: 1, OK: 0}
+LEVELS = {
+    OK: "OK",
+    MINOR: "Minor",
+    MAJOR: "Major",
+    CRITICAL: "Critical",
+    UNKNOWN: "Unknown",
+}
+
+
+def _esc(text: str) -> str:
+    return html.escape(text, quote=False)
+
+
+def _linked(event: Event) -> str:
+    title = _esc(event.title)
+    return f'<a href="{html.escape(event.url)}">{title}</a>' if event.url else title
+
+
+def _html_line(event: Event) -> str | None:
+    if event.kind == "incident":
+        return f"🆕 {_linked(event)}"
+    if event.kind == "resolved":
+        return f"✅ Resolved: {_linked(event)}"
+    if event.kind == "degraded":
+        return f"⚠️ Degraded: {_esc(event.title)}"
+    if event.kind == "recovered":
+        return f"✅ Recovered: {_esc(event.title)}"
+    if event.kind == "unreadable":
+        return f"❓ Can't read the status feed: <i>{_esc(event.title)}</i>"
+    if event.kind == "readable":
+        return "📡 Status feed readable again"
+    return None  # worse/better are shown in the provider heading
+
+
+def telegram_html(events: list[Event], limit: int = 4096) -> str:
+    """Telegram HTML: one block per provider, worst first, titles as links.
+
+    Lines that would push the message past *limit* are dropped and counted
+    rather than cut mid-tag, which Telegram would reject.
+    """
+    grouped: dict[str, list[Event]] = {}
+    for event in events:
+        grouped.setdefault(event.provider, []).append(event)
+    order = sorted(grouped, key=lambda name: -_RANK.get(grouped[name][0].level, 0))
+
+    blocks: list[list[str]] = []
+    for name in order:
+        group = grouped[name]
+        level = group[0].level or UNKNOWN
+        heading = f"{DOTS.get(level, DOTS[UNKNOWN])} <b>{_esc(name)}</b>"
+        shift = next((e for e in group if e.kind in ("worse", "better")), None)
+        if shift:
+            before = LEVELS.get(shift.previous, shift.previous)
+            heading += f" · {before} → {LEVELS.get(level, level)}"
+        blocks.append([heading] + [line for e in group if (line := _html_line(e))])
+
+    header = f"<b>GWEN</b> · {_count(events)}"
+    text = header
+    dropped = 0
+    for block in blocks:
+        for index, line in enumerate(block):
+            addition = ("\n\n" if index == 0 else "\n") + line
+            # Leave room for the "and N more" note.
+            if dropped or len(text) + len(addition) > limit - 40:
+                dropped += 1
+                continue
+            text += addition
+    if dropped:
+        text += f"\n\n<i>… and {dropped} more line{'s' if dropped != 1 else ''}</i>"
+    return text
 
 
 def payload(events: list[Event]) -> dict:
@@ -226,10 +342,12 @@ class Telegram:
     LIMIT = 4096
 
     async def send(self, session: aiohttp.ClientSession, events: list[Event]) -> None:
-        text = message(events)
-        if len(text) > self.LIMIT:
-            text = text[: self.LIMIT - 30].rsplit("\n", 1)[0] + "\n... (truncated)"
-        body = {"chat_id": self.chat_id, "text": text, "disable_web_page_preview": True}
+        body = {
+            "chat_id": self.chat_id,
+            "text": telegram_html(events, self.LIMIT),
+            "parse_mode": "HTML",
+            "link_preview_options": {"is_disabled": True},
+        }
         try:
             async with session.post(
                 f"{self.api}/bot{self.token}/sendMessage", json=body

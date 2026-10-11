@@ -352,15 +352,57 @@ def send_telegram(events, status_code=200, reply=None, chat="-100200300"):
     return received
 
 
-def test_telegram_sends_plain_text_to_the_chat():
+def test_telegram_sends_html_to_the_chat():
     received = send_telegram(EVENTS, reply='{"ok": true}')
 
     path, body = received[0]
     assert path == f"/bot{TOKEN}/sendMessage"
     assert body["chat_id"] == "-100200300"
-    assert body["text"] == watch.message(EVENTS)
-    assert body["disable_web_page_preview"] is True
-    assert "parse_mode" not in body, "plain text: vendor titles must not need escaping"
+    assert body["parse_mode"] == "HTML"
+    assert body["text"] == watch.telegram_html(EVENTS)
+    assert body["link_preview_options"] == {"is_disabled": True}
+
+
+def ev(provider, kind, title="", url="", level=MAJOR, previous=""):
+    return watch.Event(provider, kind, "", url, title=title, level=level, previous=previous)
+
+
+def test_telegram_html_groups_by_provider_worst_first():
+    text = watch.telegram_html(
+        [
+            ev("GitHub", "resolved", "Actions delays", "https://g.example/1", level=OK),
+            ev("GitHub", "better", level=OK, previous=MINOR),
+            ev("Azure", "unreadable", "timed out", level=UNKNOWN),
+            ev("AWS", "incident", "EC2 errors", "https://a.example/1"),
+            ev("AWS", "worse", previous=OK),
+        ]
+    )
+
+    assert text.startswith("<b>GWEN</b> · 5 changes")
+    assert text.index("<b>AWS</b>") < text.index("<b>Azure</b>") < text.index("<b>GitHub</b>")
+    assert "🟠 <b>AWS</b> · OK → Major" in text
+    assert '🆕 <a href="https://a.example/1">EC2 errors</a>' in text
+    assert "🟢 <b>GitHub</b> · Minor → OK" in text
+    assert '✅ Resolved: <a href="https://g.example/1">Actions delays</a>' in text
+    assert "⚪ <b>Azure</b>\n❓ Can't read the status feed: <i>timed out</i>" in text
+
+
+def test_telegram_html_escapes_vendor_text():
+    """Telegram rejects the whole message if vendor text looks like a tag."""
+    text = watch.telegram_html([ev("A&B <x>", "incident", "Errors <5xx> & timeouts", 'https://x/?a=1&b="2"')])
+    assert "<b>A&amp;B &lt;x&gt;</b>" in text
+    assert "Errors &lt;5xx&gt; &amp; timeouts</a>" in text
+    assert 'href="https://x/?a=1&amp;b=&quot;2&quot;"' in text
+    assert "<5xx>" not in text
+
+
+def test_evaluate_fills_titles_and_levels_for_rendering():
+    _, state = step([("aws", status(indicator=MINOR, ongoing=[incident("EC2 errors")]))])
+    events, _ = step([("aws", status(indicator=MAJOR, ongoing=[incident("EC2 errors"), incident("S3 errors")]))], state)
+
+    new, worse = events
+    assert (new.kind, new.title, new.level) == ("incident", "S3 errors", MAJOR)
+    assert (worse.kind, worse.previous, worse.level) == ("worse", MINOR, MAJOR)
 
 
 def test_telegram_failure_reports_reason_without_the_token():
@@ -382,12 +424,14 @@ def test_telegram_network_error_hides_the_token():
     assert "SECRET" not in str(raised.value)
 
 
-def test_telegram_long_messages_are_truncated():
-    many = [watch.Event("AWS", "incident", "x" * 100) for _ in range(100)]
+def test_telegram_long_messages_drop_whole_lines():
+    many = [ev("AWS", "incident", "x" * 100, "https://a.example/") for _ in range(100)]
     received = send_telegram(many, reply='{"ok": true}')
     text = received[0][1]["text"]
     assert len(text) <= watch.Telegram.LIMIT
-    assert text.endswith("(truncated)")
+    assert text.endswith("more lines</i>")
+    # Every link that made it in is complete; nothing was cut mid-tag.
+    assert text.count("<a ") == text.count("</a>")
 
 
 def test_config_reads_telegram_chat_but_refuses_the_token(tmp_path):
