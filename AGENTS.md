@@ -42,6 +42,8 @@ Ruff and mypy are configured in `pyproject.toml`. Dev dependencies are declared 
 
 Offline tests never touch the network. The `stub_feeds` fixture in `tests/conftest.py` replaces `providers._read` and serves bytes by URL fragment. Any request it has no mapping for fails the test, which also catches accidental extra requests. Async code is driven with the `run()` helper (`asyncio.run`) because there is no async pytest plugin. Tests import helpers with `from conftest import ...`.
 
+`tests/test_e2e.py` runs the installed `gwen` executable as a subprocess, so it checks the entry point, argument parsing, exit codes and real HTTP/TLS. A subprocess cannot see `stub_feeds`, so the offline cases serve `tests/fixtures/` from a local HTTPS server (a throwaway CA from `trustme`, trusted through `SSL_CERT_FILE`) and point a `[[statuspage]]` provider in a temporary `gwen.toml` at it. Built-in providers have fixed URLs, so their CLI path is covered only by the `live` cases. Set `GWEN_BIN` to run these tests against another `gwen`, such as one installed from a built wheel.
+
 Files in `tests/fixtures/` are real vendor payloads, trimmed but otherwise in their original shape. `.gitattributes` marks them `-text`, so line endings and bytes stay exactly as recorded. Do not reformat them by hand; re-record them from the live endpoint instead. For small edge cases, an inline payload in the test reads better than a new fixture file.
 
 Fixtures carry fixed timestamps, so an assertion that depends on "now" will rot as the fixture ages. Build payloads relative to `datetime.now(timezone.utc)`, or rewrite the timestamp the way `_azure_with_build_date` in `test_parsing.py` does.
