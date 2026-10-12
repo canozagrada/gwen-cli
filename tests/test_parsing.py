@@ -185,10 +185,15 @@ def _statuspage_with_upcoming_maintenance(summary: bytes) -> bytes:
     """Shift maintenance windows so the latest ends tomorrow; finished ones are filtered out."""
     data = json.loads(summary)
     windows = data["scheduled_maintenances"]
-    latest_end = max(datetime.fromisoformat(w["scheduled_until"]) for w in windows)
+
+    def parse(value: str) -> datetime:
+        # Python 3.10's fromisoformat does not accept a trailing "Z".
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    latest_end = max(parse(w["scheduled_until"]) for w in windows)
     shift = datetime.now(timezone.utc) + timedelta(days=1) - latest_end
     for w in windows:
         for key in ("scheduled_for", "scheduled_until"):
             if w.get(key):
-                w[key] = (datetime.fromisoformat(w[key]) + shift).isoformat()
+                w[key] = (parse(w[key]) + shift).isoformat()
     return json.dumps(data).encode()
