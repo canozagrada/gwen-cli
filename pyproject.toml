@@ -76,7 +76,7 @@ line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
 # Markdown code blocks are illustrative snippets, not modules to reformat.
-extend-exclude = ["*.md"]
+extend-exclude = ["*.md", ".claude/worktrees"]
 
 [tool.ruff.lint]
 # pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, ruff-specific.

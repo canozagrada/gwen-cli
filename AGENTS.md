@@ -38,6 +38,19 @@ The project uses uv; `uv run` builds `.venv` from `uv.lock` on first use.
 
 Ruff and mypy are configured in `pyproject.toml`. Dev dependencies are declared twice in `pyproject.toml` (`[dependency-groups]` for uv, `[project.optional-dependencies]` for `pip install -e ".[dev]"`), and the two lists have to stay identical.
 
+## Before you finish
+
+Run these from the repository root before you report a change as done, and put the actual results (pass/fail counts, or the failing output) in your report:
+
+1. `uv run ruff check`
+2. `uv run ruff format --check`
+3. `uv run pytest`
+4. `uv run pytest -m live` as well, whenever you touched provider or feed code (`providers.py`, a URL, a parser, a fixture) or `test_live.py`. If the network is unavailable, say the live run was skipped and why.
+
+`uv run mypy` is also part of CI. Never say tests or checks pass without having run them in this session. If something fails and you cannot fix it, report the failure instead of describing the work as complete.
+
+Claude Code also enforces this. `.claude/settings.json` registers `.claude/hooks/verify.py` as a Stop hook, which runs ruff check, ruff format --check and `pytest -q -x` whenever the working tree differs from the last state that passed, and blocks the end of the turn (exit 2) on failure. It caches the last passing tree id in the git dir (`git rev-parse --git-path claude-verified`), so an unchanged tree costs nothing. The hook does not run the live tests, so step 4 is still on you. `CLAUDE_SKIP_VERIFY=1` turns the hook off for a session; use it only when the user asks.
+
 ## Tests and fixtures
 
 Offline tests never touch the network. The `stub_feeds` fixture in `tests/conftest.py` replaces `providers._read` and serves bytes by URL fragment. Any request it has no mapping for fails the test, which also catches accidental extra requests. Async code is driven with the `run()` helper (`asyncio.run`) because there is no async pytest plugin. Tests import helpers with `from conftest import ...`.
