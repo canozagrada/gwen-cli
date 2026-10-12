@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from conftest import load
-
 from gwen_cli import cli, config, providers
+
+from conftest import load
 
 
 @pytest.fixture(autouse=True)
@@ -89,9 +89,7 @@ def test_bad_config_exits_with_usage_error(tmp_path, monkeypatch):
     assert invoke(monkeypatch, "status") == 2
 
 
-def test_status_uses_the_configured_providers(
-    tmp_path, monkeypatch, stub_feeds, capsys
-):
+def test_status_uses_the_configured_providers(tmp_path, monkeypatch, stub_feeds, capsys):
     monkeypatch.chdir(tmp_path)
     write(tmp_path, 'providers = ["github"]\n')
     feeds = stub_feeds({"summary.json": load("statuspage_summary.json")})

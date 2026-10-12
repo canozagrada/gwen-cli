@@ -19,9 +19,13 @@ from .providers import CRITICAL, MAJOR, MINOR, OK, UNKNOWN, ProviderStatus
 
 console = Console()
 
-ICONS = {OK: "[green]OK[/green]", MINOR: "[yellow]MINOR[/yellow]",
-         MAJOR: "[red]MAJOR[/red]", CRITICAL: "[bold red]CRITICAL[/bold red]",
-         UNKNOWN: "[dim]UNKNOWN[/dim]"}
+ICONS = {
+    OK: "[green]OK[/green]",
+    MINOR: "[yellow]MINOR[/yellow]",
+    MAJOR: "[red]MAJOR[/red]",
+    CRITICAL: "[bold red]CRITICAL[/bold red]",
+    UNKNOWN: "[dim]UNKNOWN[/dim]",
+}
 
 DASH = "[dim]--[/dim]"
 
@@ -97,7 +101,8 @@ def narrow(result: ProviderStatus, target: targets.Target | None) -> ProviderSta
         recent=[i for i in result.recent if affects(i)],
         degraded=degraded,
         maintenance=[
-            m for m in result.maintenance
+            m
+            for m in result.maintenance
             if targets.matches(target, " ".join([m.name, *m.components]))
         ],
     )
@@ -170,7 +175,9 @@ def show_detail(result: ProviderStatus, target: targets.Target | None = None) ->
     if result.ongoing:
         console.print(f"\n[bold red]Ongoing incidents ({len(result.ongoing)})[/bold red]")
         for incident in result.ongoing:
-            note = " [dim](names no region; may affect it)[/dim]" if unplaced(target, incident) else ""
+            note = (
+                " [dim](names no region; may affect it)[/dim]" if unplaced(target, incident) else ""
+            )
             console.print(f"  - {escape(incident.name)}{note}")
             if incident.url:
                 console.print(f"    [dim]{incident.url}[/dim]")
@@ -221,7 +228,11 @@ def cmd_incidents(args) -> int:
         if result.ongoing:
             console.print(f"\n[red]Ongoing ({len(result.ongoing)})[/red]")
             for incident in result.ongoing:
-                note = " [dim](names no region; may affect it)[/dim]" if unplaced(target, incident) else ""
+                note = (
+                    " [dim](names no region; may affect it)[/dim]"
+                    if unplaced(target, incident)
+                    else ""
+                )
                 console.print(f"  [bold]{escape(incident.name)}[/bold]{note}")
                 details = [f"Impact: {incident.impact or 'unknown'}"]
                 if incident.status:
@@ -366,9 +377,7 @@ def cmd_providers(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="gwen", description="Monitor public cloud status feeds."
-    )
+    parser = argparse.ArgumentParser(prog="gwen", description="Monitor public cloud status feeds.")
     parser.add_argument(
         "--config", type=pathlib.Path, help="Config file (default: ./gwen.toml if present)"
     )
@@ -395,7 +404,9 @@ def build_parser() -> argparse.ArgumentParser:
     maintenance = add("maintenance", "Show scheduled maintenance windows")
     maintenance.set_defaults(func=cmd_maintenance)
 
-    listing_regions = subparsers.add_parser("regions", help="List region names, e.g. for gwen status azure/scus")
+    listing_regions = subparsers.add_parser(
+        "regions", help="List region names, e.g. for gwen status azure/scus"
+    )
     listing_regions.add_argument("provider", nargs="?", help="e.g. azure")
     listing_regions.set_defaults(func=cmd_regions)
 

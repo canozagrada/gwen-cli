@@ -11,10 +11,10 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 
-from conftest import load, load_json, run
-
 from gwen_cli import providers
 from gwen_cli.providers import MAJOR, MINOR, OK, UNKNOWN
+
+from conftest import load, load_json, run
 
 
 def cloudflare() -> providers.StatuspageProvider:
@@ -22,7 +22,9 @@ def cloudflare() -> providers.StatuspageProvider:
 
 
 def test_statuspage_reads_status_components_and_maintenance(stub_feeds):
-    stub_feeds({"summary.json": _statuspage_with_upcoming_maintenance(load("statuspage_summary.json"))})
+    stub_feeds(
+        {"summary.json": _statuspage_with_upcoming_maintenance(load("statuspage_summary.json"))}
+    )
 
     result = run(cloudflare().fetch(None, days=0))
 
@@ -54,10 +56,12 @@ def test_statuspage_history_honours_the_day_window(stub_feeds):
             {"name": "twenty days ago", "created_at": (now - timedelta(days=20)).isoformat()},
         ]
     }
-    stub_feeds({
-        "summary.json": load("statuspage_summary.json"),
-        "incidents.json": json.dumps(payload).encode(),
-    })
+    stub_feeds(
+        {
+            "summary.json": load("statuspage_summary.json"),
+            "incidents.json": json.dumps(payload).encode(),
+        }
+    )
 
     week = run(cloudflare().fetch(None, days=7))
     month = run(cloudflare().fetch(None, days=30))
@@ -157,9 +161,7 @@ def test_azure_stale_feed_is_unknown_not_operational(stub_feeds):
 
 
 def test_azure_items_become_incidents(stub_feeds):
-    feed = _azure_with_build_date(
-        load("azure_feed_with_items.xml"), datetime.now(timezone.utc)
-    )
+    feed = _azure_with_build_date(load("azure_feed_with_items.xml"), datetime.now(timezone.utc))
     stub_feeds({"status/feed": feed})
 
     result = run(providers.AzureProvider().fetch(None, days=0))

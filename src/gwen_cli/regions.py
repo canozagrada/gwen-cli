@@ -13,6 +13,7 @@ OTHER = "Other"
 
 #: Checked in order; the first region with a matching keyword wins, so more
 #: specific regions must come before ones they could be confused with.
+# fmt: off
 REGIONS: dict[str, tuple[str, ...]] = {
     "Middle East": (
         "uae", "saudi", "israel", "turkey", "qatar", "kuwait", "bahrain", "oman",
@@ -58,6 +59,7 @@ REGIONS: dict[str, tuple[str, ...]] = {
         "johannesburg", "lagos", "nairobi", "africa", "af-",
     ),
 }
+# fmt: on
 
 #: Display order for regions in output.
 ORDER = (*REGIONS, OTHER)

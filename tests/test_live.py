@@ -18,14 +18,15 @@ import json
 import aiohttp
 import pytest
 
-from conftest import run
-
 from gwen_cli import providers
+
+from conftest import run
 
 pytestmark = pytest.mark.live
 
-STATUSPAGE = [p for p in providers.PROVIDERS.values()
-              if isinstance(p, providers.StatuspageProvider)]
+STATUSPAGE = [
+    p for p in providers.PROVIDERS.values() if isinstance(p, providers.StatuspageProvider)
+]
 
 
 async def get(url: str) -> bytes:

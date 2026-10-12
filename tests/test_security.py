@@ -15,9 +15,9 @@ import pytest
 from defusedxml import EntitiesForbidden
 from defusedxml.ElementTree import fromstring
 
-from conftest import run
-
 from gwen_cli import providers
+
+from conftest import run
 
 BILLION_LAUGHS = """<?xml version="1.0"?>
 <!DOCTYPE lolz [

@@ -32,7 +32,11 @@ The project uses uv; `uv run` builds `.venv` from `uv.lock` on first use.
 - `uv run pytest` runs the offline suite. `pyproject.toml` sets `addopts = "-m 'not live'"`, so live tests are excluded by default.
 - `uv run pytest -m live` runs only the live tests, which make real requests to every vendor's endpoints and depend on their uptime. Run them when you change a URL or parser or want to confirm a feed's shape, not as a routine check.
 
-No linter, formatter or type checker is configured. Dev dependencies are declared twice in `pyproject.toml` (`[dependency-groups]` for uv, `[project.optional-dependencies]` for `pip install -e ".[dev]"`), and the two lists have to stay identical.
+- `uv run ruff check` lints (rules E, W, F, I, B, UP, SIM, RUF; line length 100). `uv run ruff check --fix` applies the safe fixes.
+- `uv run ruff format` formats; CI runs `uv run ruff format --check`. Hand-aligned data tables, such as `REGIONS` in `regions.py`, sit between `# fmt: off` / `# fmt: on`.
+- `uv run mypy` type-checks `src/` (configured under `[tool.mypy]`).
+
+Ruff and mypy are configured in `pyproject.toml`. Dev dependencies are declared twice in `pyproject.toml` (`[dependency-groups]` for uv, `[project.optional-dependencies]` for `pip install -e ".[dev]"`), and the two lists have to stay identical.
 
 ## Tests and fixtures
 

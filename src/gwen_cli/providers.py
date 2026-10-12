@@ -17,6 +17,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from typing import Any, ClassVar
 from xml.etree.ElementTree import ParseError
 
 import aiohttp
@@ -201,7 +202,8 @@ class StatuspageProvider(Provider):
         summary = await _read_json(session, f"{self.base_url}/api/v2/summary.json")
 
         status = summary.get("status") or {}
-        indicator = {"none": OK}.get(status.get("indicator"), status.get("indicator") or UNKNOWN)
+        raw: Any = status.get("indicator")
+        indicator = {"none": OK}.get(raw, raw or UNKNOWN)
 
         result = self.status(
             indicator=indicator,
@@ -287,7 +289,7 @@ class GCPProvider(Provider):
     SITE = "https://status.cloud.google.com/"
 
     #: GCP severity values, mapped onto our indicators.
-    _SEVERITY = {"low": MINOR, "medium": MAJOR, "high": CRITICAL}
+    _SEVERITY: ClassVar[dict[str, str]] = {"low": MINOR, "medium": MAJOR, "high": CRITICAL}
 
     async def fetch(self, session, days: int) -> ProviderStatus:
         incidents = await _read_json(session, self.URL)
@@ -352,12 +354,12 @@ class AWSProvider(Provider):
     HISTORY = "https://status.aws.amazon.com/rss/all.rss"
 
     #: AWS Health status codes, as used by the service health dashboard.
-    _STATUS = {0: OK, 1: MINOR, 2: MAJOR, 3: MAJOR}
+    _STATUS: ClassVar[dict[int, str]] = {0: OK, 1: MINOR, 2: MAJOR, 3: MAJOR}
 
     async def fetch(self, session, days: int) -> ProviderStatus:
         ongoing = await self._current(session)
         worst = OK
-        for event, indicator in ongoing:
+        for _event, indicator in ongoing:
             if SEVERITY[indicator] > SEVERITY[worst]:
                 worst = indicator
 
@@ -561,9 +563,7 @@ async def _fetch_one(session, provider: Provider, days: int) -> ProviderStatus:
     # explicitly -- otherwise one malformed feed takes down the whole run.
     except (ValueError, KeyError, TypeError, ParseError) as exc:
         error = f"could not read feed: {exc}"
-    return provider.status(
-        indicator=UNKNOWN, description="Status unavailable", error=error
-    )
+    return provider.status(indicator=UNKNOWN, description="Status unavailable", error=error)
 
 
 async def gather(names: list[str] | None = None, days: int = 14) -> list[ProviderStatus]:
@@ -574,6 +574,4 @@ async def gather(names: list[str] | None = None, days: int = 14) -> list[Provide
     async with aiohttp.ClientSession(
         connector=connector, headers={"User-Agent": _USER_AGENT}, timeout=_TIMEOUT
     ) as session:
-        return list(
-            await asyncio.gather(*(_fetch_one(session, p, days) for p in selected))
-        )
+        return list(await asyncio.gather(*(_fetch_one(session, p, days) for p in selected)))
