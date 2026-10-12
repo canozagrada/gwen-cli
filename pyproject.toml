@@ -30,7 +30,6 @@ dependencies = [
     "rich>=13.0.0",
     "defusedxml>=0.7.1",
     "tomli>=2.0.0; python_version < '3.11'",
-    "tzdata>=2024.1 ; sys_platform == 'win32'",
 ]
 
 # Dev dependencies are declared twice on purpose: `dependency-groups` is what
