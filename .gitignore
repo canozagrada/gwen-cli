@@ -47,3 +47,8 @@ Desktop.ini
 
 # Project specific
 *.old.md
+
+# Claude Code: personal settings and agent worktrees stay local;
+# .claude/settings.json and .claude/hooks/ are shared and committed.
+.claude/settings.local.json
+.claude/worktrees/

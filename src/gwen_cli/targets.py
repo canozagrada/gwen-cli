@@ -19,6 +19,7 @@ matches "Dallas, TX, United States - (DFW)".
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from . import providers
@@ -67,21 +68,15 @@ CATALOGS: dict[str, dict[str, Region]] = {
             _azure("eastus", "East US", ["eus"], pair="westus"),
             _azure("eastus2", "East US 2", ["eus2"], pair="centralus"),
             _azure("centralus", "Central US", ["cus"], pair="eastus2"),
-            _azure(
-                "northcentralus", "North Central US", ["ncus"], pair="southcentralus"
-            ),
-            _azure(
-                "southcentralus", "South Central US", ["scus"], pair="northcentralus"
-            ),
+            _azure("northcentralus", "North Central US", ["ncus"], pair="southcentralus"),
+            _azure("southcentralus", "South Central US", ["scus"], pair="northcentralus"),
             _azure("westcentralus", "West Central US", ["wcus"], pair="westus2"),
             _azure("westus", "West US", ["wus"], pair="eastus"),
             _azure("westus2", "West US 2", ["wus2"], pair="westcentralus"),
             _azure("westus3", "West US 3", ["wus3"], pair="eastus"),
             _azure("canadacentral", "Canada Central", ["cac"], pair="canadaeast"),
             _azure("canadaeast", "Canada East", ["cae"], pair="canadacentral"),
-            _azure(
-                "brazilsouth", "Brazil South", ["brs"], LATAM, pair="southcentralus"
-            ),
+            _azure("brazilsouth", "Brazil South", ["brs"], LATAM, pair="southcentralus"),
             _azure("mexicocentral", "Mexico Central", [], LATAM),
             _azure("northeurope", "North Europe", ["neu"], EU, pair="westeurope"),
             _azure("westeurope", "West Europe", ["weu"], EU, pair="northeurope"),
@@ -96,9 +91,7 @@ CATALOGS: dict[str, dict[str, Region]] = {
                 EU,
                 pair="germanynorth",
             ),
-            _azure(
-                "germanynorth", "Germany North", ["gn"], EU, pair="germanywestcentral"
-            ),
+            _azure("germanynorth", "Germany North", ["gn"], EU, pair="germanywestcentral"),
             _azure("swedencentral", "Sweden Central", ["sdc"], EU),
             _azure(
                 "switzerlandnorth",
@@ -307,18 +300,14 @@ _COMPILED: dict[str, _Compiled] = {}
 def _compiled(provider: str) -> _Compiled:
     if provider not in _COMPILED:
         pairs = [
-            (name, region.code)
-            for region in CATALOGS[provider].values()
-            for name in region.names
+            (name, region.code) for region in CATALOGS[provider].values() for name in region.names
         ]
         pairs.sort(key=lambda pair: len(pair[0]), reverse=True)
-        _COMPILED[provider] = _Compiled(
-            [(_pattern(name), code) for name, code in pairs]
-        )
+        _COMPILED[provider] = _Compiled([(_pattern(name), code) for name, code in pairs])
     return _COMPILED[provider]
 
 
-def mentioned(provider: str, text: str, codes: list[str] = ()) -> set[str] | None:
+def mentioned(provider: str, text: str, codes: Sequence[str] = ()) -> set[str] | None:
     """Region codes of *provider* that *text* (or explicit *codes*) refer to.
 
     Returns None for providers without a catalog: there is no way to tell
@@ -342,7 +331,7 @@ def names(term: str, text: str) -> bool:
     return bool(_pattern(term.lower()).search(text.lower()))
 
 
-def matches(target: Target, text: str, codes: list[str] = ()) -> bool:
+def matches(target: Target, text: str, codes: Sequence[str] = ()) -> bool:
     """Does an incident with this *text* and region *codes* affect *target*?"""
     if target.region is None:
         return True

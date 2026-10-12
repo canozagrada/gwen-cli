@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 
 import pytest
 
-from conftest import load, load_json, run
-
 from gwen_cli import cli, providers, targets
 from gwen_cli.providers import (
     MAJOR,
@@ -20,6 +18,8 @@ from gwen_cli.providers import (
     ProviderStatus,
 )
 from gwen_cli.targets import Target
+
+from conftest import load, load_json, run
 
 SCUS = Target("azure", "southcentralus")
 
@@ -83,9 +83,7 @@ def test_azure_region_names_do_not_bleed_into_each_other(text, expected):
 
 
 def test_explicit_region_codes_count():
-    assert targets.mentioned("aws", "Increased error rates", ["us-east-1"]) == {
-        "us-east-1"
-    }
+    assert targets.mentioned("aws", "Increased error rates", ["us-east-1"]) == {"us-east-1"}
 
 
 def test_unnamed_region_affects_every_region_of_a_catalog_provider():
@@ -101,21 +99,13 @@ def test_catalogless_providers_match_whole_words():
 
 
 def test_aws_and_gcp_feeds_supply_region_codes(stub_feeds):
-    stub_feeds(
-        {
-            "currentevents": json.dumps(load_json("aws_currentevents.json")).encode(
-                "utf-16"
-            )
-        }
-    )
+    stub_feeds({"currentevents": json.dumps(load_json("aws_currentevents.json")).encode("utf-16")})
     aws = run(providers._fetch_one(None, providers.AWSProvider(), 0))
     assert aws.ongoing[0].regions == ["me-central-1"]
 
     gcp_data = json.loads(load("gcp_incidents.json"))
     gcp_data[0]["end"] = None
-    gcp_data[0]["currently_affected_locations"] = [
-        {"title": "Iowa", "id": "us-central1"}
-    ]
+    gcp_data[0]["currently_affected_locations"] = [{"title": "Iowa", "id": "us-central1"}]
     stub_feeds({"incidents.json": json.dumps(gcp_data).encode()})
     gcp = run(providers._fetch_one(None, providers.GCPProvider(), 0))
     assert gcp.ongoing[0].regions == ["us-central1"]
@@ -152,9 +142,7 @@ def test_narrow_elsewhere_only_is_ok_for_this_region():
 
 
 def test_narrow_never_reports_ok_for_a_matching_incident():
-    narrowed = cli.narrow(
-        azure(incident("Latency in South Central US"), indicator=OK), SCUS
-    )
+    narrowed = cli.narrow(azure(incident("Latency in South Central US"), indicator=OK), SCUS)
     assert narrowed.indicator == MINOR
 
 

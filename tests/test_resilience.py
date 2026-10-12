@@ -12,10 +12,10 @@ import asyncio
 import aiohttp
 import pytest
 
-from conftest import run
-
 from gwen_cli import providers, regions
 from gwen_cli.providers import OK, UNKNOWN
+
+from conftest import run
 
 # One entry per provider: an instance plus a URL fragment its fetch will request.
 CASES = [
@@ -83,11 +83,14 @@ def test_malformed_xml_degrades_instead_of_crashing(stub_feeds):
 
 
 def test_one_broken_provider_does_not_affect_the_others(stub_feeds):
-    stub_feeds({
-        "githubstatus": aiohttp.ClientError("refused"),
-        "summary.json": b'{"status":{"indicator":"none","description":"All Systems Operational"},'
-                        b'"page":{},"components":[],"incidents":[],"scheduled_maintenances":[]}',
-    })
+    stub_feeds(
+        {
+            "githubstatus": aiohttp.ClientError("refused"),
+            "summary.json": b'{"status":{"indicator":"none",'
+            b'"description":"All Systems Operational"},'
+            b'"page":{},"components":[],"incidents":[],"scheduled_maintenances":[]}',
+        }
+    )
 
     results = run(providers.gather(["github", "datadog", "atlassian"], days=0))
     by_name = {r.name: r for r in results}
@@ -108,9 +111,13 @@ def test_providers_that_cannot_see_maintenance_say_so():
 
 def test_a_page_with_no_components_does_not_claim_they_are_healthy(stub_feeds):
     """Atlassian publishes zero components; that is 'cannot see', not 'all OK'."""
-    stub_feeds({"summary.json": b'{"status":{"indicator":"none","description":"ok"},'
-                                b'"page":{},"components":[],"incidents":[],'
-                                b'"scheduled_maintenances":[]}'})
+    stub_feeds(
+        {
+            "summary.json": b'{"status":{"indicator":"none","description":"ok"},'
+            b'"page":{},"components":[],"incidents":[],'
+            b'"scheduled_maintenances":[]}'
+        }
+    )
     provider = providers.StatuspageProvider("atlassian", "Atlassian", "https://status.example")
 
     result = run(provider.fetch(None, days=0))
@@ -120,11 +127,15 @@ def test_a_page_with_no_components_does_not_claim_they_are_healthy(stub_feeds):
 
 
 def test_a_page_with_components_reports_them(stub_feeds):
-    stub_feeds({"summary.json": b'{"status":{"indicator":"none","description":"ok"},'
-                                b'"page":{},"components":['
-                                b'{"name":"API","status":"operational"},'
-                                b'{"name":"Web","status":"degraded_performance"}],'
-                                b'"incidents":[],"scheduled_maintenances":[]}'})
+    stub_feeds(
+        {
+            "summary.json": b'{"status":{"indicator":"none","description":"ok"},'
+            b'"page":{},"components":['
+            b'{"name":"API","status":"operational"},'
+            b'{"name":"Web","status":"degraded_performance"}],'
+            b'"incidents":[],"scheduled_maintenances":[]}'
+        }
+    )
     provider = providers.StatuspageProvider("github", "GitHub", "https://status.example")
 
     result = run(provider.fetch(None, days=0))

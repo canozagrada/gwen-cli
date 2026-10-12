@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0 # setup-uv publishes no floating major tag after v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check --output-format=github
+      - run: uv run ruff format --check
+      - run: uv run mypy
+      - name: Run the Claude Code Stop hook on Linux
+        run: |
+          printf '{"hook_event_name":"Stop","cwd":"%s","stop_hook_active":false}' "$PWD" > "$RUNNER_TEMP/hook-input.json"
+          uv run --no-project python .claude/hooks/verify.py < "$RUNNER_TEMP/hook-input.json"
+
+  test:
+    name: Test (Python ${{ matrix.python }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: windows-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked
+      # Offline suite, including the subprocess e2e tests in tests/test_e2e.py.
+      - run: uv run pytest
+
+  build:
+    name: Build and smoke-test the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv build
+      - name: Install the wheel into a clean environment
+        run: |
+          uv venv "$RUNNER_TEMP/smoke"
+          uv pip install --python "$RUNNER_TEMP/smoke" dist/*.whl
+      - name: Smoke-test the installed CLI
+        run: |
+          gwen="$RUNNER_TEMP/smoke/bin/gwen"
+          "$gwen" --help
+          "$gwen" providers
+          set +e
+          "$gwen" status nosuchvendor
+          code=$?
+          set -e
+          test "$code" -eq 2 || { echo "expected exit 2 for an unknown provider, got $code"; exit 1; }
+      - name: Run the e2e tests against the installed wheel
+        run: |
+          uv sync --locked
+          GWEN_BIN="$RUNNER_TEMP/smoke/bin/gwen" uv run pytest tests/test_e2e.py -v
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

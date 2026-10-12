@@ -32,11 +32,30 @@ The project uses uv; `uv run` builds `.venv` from `uv.lock` on first use.
 - `uv run pytest` runs the offline suite. `pyproject.toml` sets `addopts = "-m 'not live'"`, so live tests are excluded by default.
 - `uv run pytest -m live` runs only the live tests, which make real requests to every vendor's endpoints and depend on their uptime. Run them when you change a URL or parser or want to confirm a feed's shape, not as a routine check.
 
-No linter, formatter or type checker is configured. Dev dependencies are declared twice in `pyproject.toml` (`[dependency-groups]` for uv, `[project.optional-dependencies]` for `pip install -e ".[dev]"`), and the two lists have to stay identical.
+- `uv run ruff check` lints (rules E, W, F, I, B, UP, SIM, RUF; line length 100). `uv run ruff check --fix` applies the safe fixes.
+- `uv run ruff format` formats; CI runs `uv run ruff format --check`. Hand-aligned data tables, such as `REGIONS` in `regions.py`, sit between `# fmt: off` / `# fmt: on`.
+- `uv run mypy` type-checks `src/` (configured under `[tool.mypy]`).
+
+Ruff and mypy are configured in `pyproject.toml`. Dev dependencies are declared twice in `pyproject.toml` (`[dependency-groups]` for uv, `[project.optional-dependencies]` for `pip install -e ".[dev]"`), and the two lists have to stay identical.
+
+## Before you finish
+
+Run these from the repository root before you report a change as done, and put the actual results (pass/fail counts, or the failing output) in your report:
+
+1. `uv run ruff check`
+2. `uv run ruff format --check`
+3. `uv run pytest`
+4. `uv run pytest -m live` as well, whenever you touched provider or feed code (`providers.py`, a URL, a parser, a fixture) or `test_live.py`. If the network is unavailable, say the live run was skipped and why.
+
+`uv run mypy` is also part of CI. Never say tests or checks pass without having run them in this session. If something fails and you cannot fix it, report the failure instead of describing the work as complete.
+
+Claude Code also enforces this. `.claude/settings.json` registers `.claude/hooks/verify.py` as a Stop hook, which runs ruff check, ruff format --check and `pytest -q -x` whenever the working tree differs from the last state that passed, and blocks the end of the turn (exit 2) on failure. It caches the last passing tree id in the git dir (`git rev-parse --git-path claude-verified`), so an unchanged tree costs nothing. The hook does not run the live tests, so step 4 is still on you. `CLAUDE_SKIP_VERIFY=1` turns the hook off for a session; use it only when the user asks.
 
 ## Tests and fixtures
 
 Offline tests never touch the network. The `stub_feeds` fixture in `tests/conftest.py` replaces `providers._read` and serves bytes by URL fragment. Any request it has no mapping for fails the test, which also catches accidental extra requests. Async code is driven with the `run()` helper (`asyncio.run`) because there is no async pytest plugin. Tests import helpers with `from conftest import ...`.
+
+`tests/test_e2e.py` runs the installed `gwen` executable as a subprocess, so it checks the entry point, argument parsing, exit codes and real HTTP/TLS. A subprocess cannot see `stub_feeds`, so the offline cases serve `tests/fixtures/` from a local HTTPS server (a throwaway CA from `trustme`, trusted through `SSL_CERT_FILE`) and point a `[[statuspage]]` provider in a temporary `gwen.toml` at it. Built-in providers have fixed URLs, so their CLI path is covered only by the `live` cases. Set `GWEN_BIN` to run these tests against another `gwen`, such as one installed from a built wheel.
 
 Files in `tests/fixtures/` are real vendor payloads, trimmed but otherwise in their original shape. `.gitattributes` marks them `-text`, so line endings and bytes stay exactly as recorded. Do not reformat them by hand; re-record them from the live endpoint instead. For small edge cases, an inline payload in the test reads better than a new fixture file.
 

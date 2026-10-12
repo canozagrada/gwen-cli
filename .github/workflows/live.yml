@@ -1,0 +1,24 @@
+name: Live feeds
+
+# The live tests hit every vendor's real status endpoints. They catch a feed
+# that moved or changed shape -- the failure that once made gwen report a
+# false all-clear -- so they run daily rather than on every push.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0 # setup-uv publishes no floating major tag after v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -m live -v

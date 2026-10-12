@@ -36,10 +36,22 @@ dependencies = [
 # `uv sync` and `uv run` pick up automatically, and the extra keeps
 # `pip install -e ".[dev]"` working for anyone not using uv. Keep them in step.
 [dependency-groups]
-dev = ["pytest>=7.0"]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.15",
+    "mypy>=1.10",
+    "types-defusedxml",
+    "trustme>=1.1",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.15",
+    "mypy>=1.10",
+    "types-defusedxml",
+    "trustme>=1.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/canozagrada/gwen-cli"
@@ -58,3 +70,29 @@ testpaths = ["tests"]
 # opt-in: run them with `pytest -m live`.
 addopts = "-m 'not live'"
 markers = ["live: checks the real vendor endpoints (requires network)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+# Markdown code blocks are illustrative snippets, not modules to reformat.
+extend-exclude = ["*.md", ".claude/worktrees"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, ruff-specific.
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gwen_cli"]
+known-local-folder = ["conftest"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# Only installed on Python < 3.11, where it stands in for tomllib.
+module = ["tomli"]
+ignore_missing_imports = true
