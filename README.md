@@ -61,6 +61,7 @@ gwen providers                    # what each provider publishes
 gwen regions azure                # region names usable in targets, e.g. azure/scus
 gwen watch                        # send changes to Telegram or a webhook (see Alerts)
 gwen investigate azure/scus       # what else happened around a target's last problem
+gwen setup telegram               # connect a Telegram bot: token, chat id, test message
 ```
 
 Any command takes an optional provider name: `cloudflare`, `aws`, `azure`, `gcp`, `github`, `datadog`, `atlassian`.
@@ -121,10 +122,20 @@ gwen watch --interval 300                         # keep running, every 5 minute
 
 ### Telegram
 
-1. In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, and follow the prompts. It replies with a token like `123456789:AA...`.
-2. Send your new bot any message (or add it to a group and post there), so it is allowed to message you back.
-3. Find the chat id: open `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser and copy `"chat":{"id": ...}`. Group ids are negative, e.g. `-1001234567890`.
-4. Run it:
+```bash
+gwen setup telegram
+```
+
+It walks you through it:
+
+1. If you don't have a bot yet, it tells you how to make one: message [@BotFather](https://t.me/BotFather), send `/newbot`, pick a name. Telegram only gives bot tokens to people, so this is the one step GWEN can't do for you.
+2. You paste the token. It isn't shown on screen, and GWEN checks it with Telegram straight away.
+3. You open the bot's chat and press **Start**. GWEN waits for that message and takes the chat id from it. If several chats have messaged the bot, it asks which one.
+4. It sends a test message to that chat, then saves the token and chat id as `GWEN_TELEGRAM_TOKEN` and `GWEN_TELEGRAM_CHAT`. On Windows they are saved as user environment variables, so scheduled tasks pick them up. Elsewhere it prints the two lines to add to your crontab or service environment.
+
+Run it again with `--new-token` to switch bots. If the bot already has a webhook set by another tool, setup stops instead of removing it.
+
+**Doing it by hand** (CI, servers): set `GWEN_TELEGRAM_TOKEN` to the token, send the bot a message, open `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy `"chat":{"id": ...}` (group ids are negative), then:
 
 ```bash
 export GWEN_TELEGRAM_TOKEN=123456789:AA...
@@ -276,7 +287,8 @@ src/gwen_cli/
 ├── policy.py       # priority rules and work hours
 ├── watch.py        # change detection, routing and delivery for `gwen watch`
 ├── history.py      # the SQLite history of every change
-└── investigate.py  # relating recorded changes around a problem
+├── investigate.py  # relating recorded changes around a problem
+└── telegram_setup.py  # `gwen setup telegram`
 ```
 
 `providers.gather()` opens a single connection pool and fetches every provider concurrently. Each returns a `ProviderStatus`, so `cli.py` never needs to know how a given vendor publishes its data.
