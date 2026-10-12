@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import os
 import pathlib
 import time
@@ -15,7 +16,16 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from . import config, history, investigate, providers, regions, targets, watch
+from . import (
+    config,
+    history,
+    investigate,
+    providers,
+    regions,
+    targets,
+    telegram_setup,
+    watch,
+)
 from .providers import CRITICAL, MAJOR, MINOR, OK, UNKNOWN, ProviderStatus
 
 console = Console()
@@ -405,6 +415,67 @@ def cmd_investigate(args) -> int:
     return 0
 
 
+BOTFATHER_STEPS = """\
+[bold]Connect GWEN to Telegram[/bold]
+
+You need a Telegram bot for GWEN to message you from. If you don't have one yet:
+  1. Open [link=https://t.me/BotFather]https://t.me/BotFather[/link] and send [bold]/newbot[/bold]
+  2. Pick any name, then a username ending in "bot"
+  3. BotFather replies with a token like [dim]123456789:AAH...[/dim]; copy it
+"""
+
+
+def _ask_token() -> str | None:
+    console.print(BOTFATHER_STEPS)
+    for _ in range(3):
+        token = getpass.getpass("Paste the bot token (it won't be shown): ").strip()
+        if telegram_setup.looks_like_token(token):
+            return token
+        console.print("[yellow]That doesn't look like a bot token (digits, a colon, then letters). Try again.[/yellow]")
+    return None
+
+
+def cmd_setup(args) -> int:
+    existing = os.environ.get(telegram_setup.TOKEN_VAR, "")
+    if existing and not args.new_token and telegram_setup.looks_like_token(existing):
+        console.print(f"Using the bot token already saved in {telegram_setup.TOKEN_VAR}. "
+                      "[dim](--new-token to use a different bot)[/dim]")
+        token = existing
+    else:
+        token = _ask_token()
+        if token is None:
+            return 2
+
+    def choose(chats):
+        console.print("\nSeveral chats have messaged the bot. Which one should GWEN use?")
+        for number, chat in enumerate(chats, 1):
+            console.print(f"  {number}. {escape(chat.name)} [dim]({chat.kind})[/dim]")
+        while True:
+            answer = input(f"Number (1-{len(chats)}): ").strip()
+            if answer.isdigit() and 1 <= int(answer) <= len(chats):
+                return chats[int(answer) - 1]
+
+    try:
+        username, chat = asyncio.run(
+            telegram_setup.connect(token, lambda line: console.print(escape(line)), choose)
+        )
+    except telegram_setup.SetupError as exc:
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        return 1
+
+    where = telegram_setup.save(token, chat.id)
+    console.print(f"\n[green]Connected.[/green] Sent a test message to {escape(chat.name)} via @{username}.")
+    if where:
+        console.print(f"Saved the token and chat id to {where}.")
+        console.print("[dim]'gwen watch' and scheduled tasks started from now on will use them.[/dim]")
+    else:
+        console.print("Add these to the environment that runs 'gwen watch' (e.g. your crontab):")
+        console.print(f"  {telegram_setup.TOKEN_VAR}=<the token you pasted>")
+        console.print(f"  {telegram_setup.CHAT_VAR}={chat.id}")
+    console.print("Try it: [bold]gwen watch --dry-run[/bold], then [bold]gwen watch[/bold].")
+    return 0
+
+
 def cmd_regions(args) -> int:
     if not args.provider:
         console.print("Region lists are built in for: " + ", ".join(sorted(targets.CATALOGS)))
@@ -531,6 +602,13 @@ def build_parser() -> argparse.ArgumentParser:
     listing_regions = subparsers.add_parser("regions", help="List region names for targets")
     listing_regions.add_argument("provider", nargs="?", help="e.g. azure")
     listing_regions.set_defaults(func=cmd_regions)
+
+    setup = subparsers.add_parser("setup", help="Connect a notification channel")
+    setup.add_argument("channel", choices=["telegram"], help="What to connect")
+    setup.add_argument(
+        "--new-token", action="store_true", help="Ask for a token even if one is saved"
+    )
+    setup.set_defaults(func=cmd_setup)
 
     listing = subparsers.add_parser("providers", help="List available providers")
     listing.set_defaults(func=cmd_providers)
