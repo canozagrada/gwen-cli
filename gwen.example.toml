@@ -1,9 +1,9 @@
 # Copy to gwen.toml and trim to what you actually depend on.
-# Every key is optional; without this file GWEN watches all built-in providers.
+# Every key is optional; without this file GWEN covers all built-in providers.
 
 # Providers used by every command when none is named on the command line.
 # Built in: cloudflare, aws, azure, gcp, github, datadog, atlassian.
-providers = ["cloudflare", "aws", "github", "twilio"]
+providers = ["cloudflare", "aws", "azure", "github", "twilio"]
 
 # Any other vendor that runs Atlassian Statuspage (has /api/v2/summary.json).
 [[statuspage]]
@@ -11,52 +11,6 @@ key = "twilio"
 label = "Twilio"
 url = "https://status.twilio.com"
 
-# Filters apply to `gwen watch` only. An incident counts when its title or
-# affected components contain one of these strings (case-insensitive).
-[filters.aws]
-match = ["us-east-1", "eu-west-1"]
-
-# Filtered providers also get alerts when matching components degrade or recover.
-[filters.cloudflare]
-match = ["(FRA)", "(AMS)"]
-
-[watch]
-# Where the previous run's state is kept, relative to this file.
-state = ".gwen-state.json"
-# Consecutive failed reads before a feed is reported as unreadable.
-unreadable_after = 2
-# Telegram chat to message (see README). The bot token is a secret and is only
-# read from the GWEN_TELEGRAM_TOKEN environment variable, never from this file.
-# telegram_chat = "987654321"
-# Any webhook. Its URL is usually a secret too: prefer GWEN_WEBHOOK or --webhook.
-# webhook = "https://example.com/hooks/gwen"
-
-# Priority 2 changes are only sent in these hours; outside them they are held
-# and sent together when work hours start.
-work_hours = "Mon-Fri 08:00-18:00"
-# IANA time zone name. Leave out to use this computer's time zone.
-# timezone = "America/Chicago"
-# Priority for changes no rule covers: 1 send now, 2 work hours, 3 history only.
-default_priority = 3
-# Every change is recorded here, relative to this file.
-# history = ".gwen-history.sqlite"
-
-# Rules: how loudly to announce changes to a provider, or a region of one.
-# Azure, AWS and GCP regions accept short or long names (scus, southcentralus).
-[[watch.rule]]
-target = "azure/scus"
-priority = 1
-# While scus has problems, its failover region is treated as priority 1 too.
-failover = ["azure/ncus"]
-
-[[watch.rule]]
-target = "azure/ncus"
-priority = 2
-
-[[watch.rule]]
-target = "aws/us-east-1"
-priority = 1
-
-[[watch.rule]]
-target = "cloudflare/dfw"
-priority = 2
+# To check one region instead of a whole provider, name it on the command
+# line: gwen status azure/scus, gwen incidents aws/us-east-1.
+# 'gwen regions azure' lists the names it understands.
