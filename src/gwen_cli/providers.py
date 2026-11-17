@@ -655,7 +655,7 @@ class DatadogProvider(Provider):
 
 def _flatten_components(components: list[dict]) -> list[dict]:
     """Expand `ComponentGroup` entries into their member components."""
-    flat = []
+    flat: list[dict] = []
     for component in components:
         if component.get("type") == "ComponentGroup":
             flat.extend(component.get("components") or [])
