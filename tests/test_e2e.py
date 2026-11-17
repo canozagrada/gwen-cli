@@ -236,6 +236,10 @@ def test_unreadable_feed_is_unknown_and_exits_1(tmp_path, fixture_server):
     assert "Fixturebroken" in result.stdout
     # The healthy provider is still reported alongside the broken one.
     assert "MINOR" in result.stdout
+    # Nothing was read for the broken one, so its row claims nothing either.
+    broken_row = next(line for line in result.stdout.splitlines() if "Fixturebroken" in line)
+    assert "all OK" not in broken_row
+    assert "?" in broken_row and " 0 " not in broken_row
 
 
 def test_untrusted_certificate_is_not_accepted(tmp_path, fixture_server):

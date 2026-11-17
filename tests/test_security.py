@@ -142,7 +142,7 @@ def test_all_feeds_are_https():
     for provider in providers.PROVIDERS.values():
         if isinstance(provider, providers.StatuspageProvider):
             urls.append(provider.base_url)
-        for attribute in ("URL", "CURRENT", "HISTORY", "SITE"):
+        for attribute in ("URL", "CURRENT", "HISTORY", "BYPASS", "SITE"):
             value = getattr(provider, attribute, None)
             if isinstance(value, str) and value.startswith("http"):
                 urls.append(value)

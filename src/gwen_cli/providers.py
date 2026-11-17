@@ -510,6 +510,181 @@ def _is_ongoing(title: str, hints: tuple[str, ...]) -> bool:
     return any(hint in lowered for hint in hints)
 
 
+class DatadogProvider(Provider):
+    """Datadog's own status-page product.
+
+    Datadog moved off Atlassian Statuspage in 2026; the old `/api/v2/*.json`
+    paths now answer 403. The page's single-page app loads everything from
+    `config.json` -- components, every incident with its timeline, and
+    maintenance -- so history costs no extra request.
+
+    The app also loads an optional `config.bypass.json` overlay that carries
+    incident updates published while Datadog's normal pipeline is down. It is
+    absent (403/404) most of the time, but when it exists it is the most
+    current information there is, so it is merged rather than ignored.
+
+    There is no page-level status field: the indicator is derived from
+    component statuses and from components named by unresolved incidents.
+    """
+
+    key = "datadog"
+    label = "Datadog"
+    source = "Datadog status page"
+
+    URL = "https://status.datadoghq.com/config.json"
+    BYPASS = "https://status.datadoghq.com/config.bypass.json"
+    SITE = "https://status.datadoghq.com/"
+
+    #: Component status values, mapped onto our indicators.
+    _STATUS: ClassVar[dict[str, str]] = {
+        "operational": OK,
+        "maintenance": OK,
+        "degraded": MINOR,
+        "partial_outage": MAJOR,
+        "major_outage": CRITICAL,
+    }
+
+    async def fetch(self, session, days: int) -> ProviderStatus:
+        config = await _read_json(session, self.URL)
+        components = config.get("components") if isinstance(config, dict) else None
+        incidents = config.get("incidents") if isinstance(config, dict) else None
+        if not isinstance(components, list) or not components:
+            raise ValueError("Datadog config.json has no components")
+        if not isinstance(incidents, list):
+            raise ValueError("Datadog config.json has no incident list")
+        # The app treats a null `maintenances` as "none scheduled".
+        maintenances = config.get("maintenances") or []
+        if not isinstance(maintenances, list):
+            raise ValueError("Datadog config.json has a malformed maintenance list")
+
+        incidents = _merge_bypass(incidents, await self._bypass(session))
+
+        statuses: dict[str, str] = {}
+        for component in _flatten_components(components):
+            statuses[component["name"]] = component.get("status") or "operational"
+        unresolved = [item for item in incidents if not item.get("resolved")]
+        for item in unresolved:
+            for component in item.get("componentsAffected") or []:
+                name, status = component["name"], component.get("status") or "operational"
+                if self._rank(status) > self._rank(statuses.get(name, "operational")):
+                    statuses[name] = status
+
+        worst = OK
+        for status in statuses.values():
+            indicator = self._indicator(status)
+            if SEVERITY[indicator] > SEVERITY[worst]:
+                worst = indicator
+        if unresolved and worst == OK:
+            worst = MINOR
+
+        cutoff = _now() - timedelta(days=days)
+        recent = [
+            incident
+            for item in incidents
+            if item.get("resolved")
+            for incident in [self._incident(item)]
+            if days > 0 and incident.started_at and incident.started_at >= cutoff
+        ]
+
+        return self.status(
+            indicator=worst,
+            description=(
+                f"{len(unresolved)} active incident(s)" if unresolved else "All Systems Operational"
+            ),
+            updated_at=_now(),
+            ongoing=[self._incident(item) for item in unresolved],
+            recent=recent,
+            maintenance=[
+                self._maintenance(item)
+                for item in maintenances
+                if item.get("currentStatus") in ("scheduled", "in_progress")
+            ],
+            degraded=[
+                Component(name=name, status=status)
+                for name, status in statuses.items()
+                if status != "operational"
+            ],
+        )
+
+    async def _bypass(self, session) -> list[dict]:
+        try:
+            data = await _read_json(session, self.BYPASS)
+        except aiohttp.ClientResponseError as exc:
+            if exc.status in (403, 404):
+                return []
+            raise
+        items = data.get("incidents") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            raise ValueError("Datadog config.bypass.json has no incident list")
+        return items
+
+    def _rank(self, status: str) -> int:
+        return SEVERITY[self._indicator(status)]
+
+    def _indicator(self, status: str) -> str:
+        # A status value this code has never seen is not evidence of health.
+        return self._STATUS.get(status, MINOR)
+
+    def _incident(self, item: dict) -> Incident:
+        affected = item.get("componentsAffected") or []
+        worst = max(
+            (c.get("status") or "operational" for c in affected),
+            key=self._rank,
+            default="operational",
+        )
+        return Incident(
+            name=item.get("title") or "Unnamed incident",
+            status=item.get("currentStatus", ""),
+            impact=self._indicator(worst) if worst != "operational" else "",
+            started_at=_parse_iso(item.get("publishedDate")),
+            resolved_at=_parse_iso(item.get("resolvedDate")) if item.get("resolved") else None,
+            url=self.SITE + str(item["id"]),
+            components=[c.get("name", "") for c in affected],
+        )
+
+    def _maintenance(self, item: dict) -> Maintenance:
+        return Maintenance(
+            name=item.get("title") or "Unnamed",
+            scheduled_for=_parse_iso(item.get("startDate")),
+            scheduled_until=_parse_iso(item.get("completedDate")),
+            in_progress=item.get("currentStatus") == "in_progress",
+            url=self.SITE + str(item["id"]),
+            components=[c.get("name", "") for c in item.get("componentsAffected") or []],
+        )
+
+
+def _flatten_components(components: list[dict]) -> list[dict]:
+    """Expand `ComponentGroup` entries into their member components."""
+    flat: list[dict] = []
+    for component in components:
+        if component.get("type") == "ComponentGroup":
+            flat.extend(component.get("components") or [])
+        else:
+            flat.append(component)
+    return flat
+
+
+def _merge_bypass(incidents: list[dict], overlay: list[dict]) -> list[dict]:
+    """Apply `config.bypass.json` the way Datadog's app does.
+
+    Overlay entries replace fields of the incident with the same id, add
+    incidents that are not in the main config, and drop any marked deleted.
+    """
+    if not overlay:
+        return incidents
+    by_id = {item["id"]: item for item in overlay}
+    merged = []
+    for item in incidents:
+        update = by_id.get(item["id"])
+        if update is None:
+            merged.append(item)
+        elif not update.get("deletedAt"):
+            merged.append({**item, **update})
+    known = {item["id"] for item in incidents}
+    merged.extend(item for item in overlay if item["id"] not in known and not item.get("deletedAt"))
+    return merged
+
+
 PROVIDERS: dict[str, Provider] = {
     provider.key: provider
     for provider in (
@@ -518,7 +693,7 @@ PROVIDERS: dict[str, Provider] = {
         AzureProvider(),
         GCPProvider(),
         StatuspageProvider("github", "GitHub", "https://www.githubstatus.com"),
-        StatuspageProvider("datadog", "Datadog", "https://status.datadoghq.com"),
+        DatadogProvider(),
         StatuspageProvider("atlassian", "Atlassian", "https://status.atlassian.com"),
     )
 }

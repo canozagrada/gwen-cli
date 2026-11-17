@@ -28,6 +28,7 @@ ICONS = {
 }
 
 DASH = "[dim]--[/dim]"
+UNREAD = "[yellow]?[/yellow]"
 
 
 def when(moment: datetime | None) -> str:
@@ -135,15 +136,19 @@ def show_summary(results: list[ProviderStatus]) -> None:
     table.add_column("Updated", style="dim", no_wrap=True)
 
     for result in results:
-        if not result.supports_components:
-            components = DASH
-        elif result.degraded:
-            components = f"[yellow]{len(result.degraded)} degraded[/yellow]"
+        if result.error:
+            # Nothing was read, so "all OK" or "0" would be a false all-clear.
+            components = incidents = maintenance = UNREAD
         else:
-            components = "[green]all OK[/green]"
+            if not result.supports_components:
+                components = DASH
+            elif result.degraded:
+                components = f"[yellow]{len(result.degraded)} degraded[/yellow]"
+            else:
+                components = "[green]all OK[/green]"
 
-        incidents = str(len(result.ongoing) + len(result.recent))
-        maintenance = str(len(result.maintenance)) if result.supports_maintenance else DASH
+            incidents = str(len(result.ongoing) + len(result.recent))
+            maintenance = str(len(result.maintenance)) if result.supports_maintenance else DASH
 
         table.add_row(
             result.name,
@@ -160,6 +165,8 @@ def show_summary(results: list[ProviderStatus]) -> None:
         console.print("\n[dim]Run 'gwen status <provider>' for component detail.[/dim]")
     if any(not (r.supports_maintenance and r.supports_components) for r in results):
         console.print(f"[dim]{DASH} means the provider does not publish that data.[/dim]")
+    if any(r.error for r in results):
+        console.print(f"[dim]{UNREAD} means the feed could not be read (see below).[/dim]")
 
 
 def show_detail(result: ProviderStatus, target: targets.Target | None = None) -> None:
