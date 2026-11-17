@@ -94,6 +94,18 @@ def test_azure_feed_is_still_being_rebuilt():
     )
 
 
+def test_datadog_config_shape():
+    data = json.loads(run(get(providers.DatadogProvider.URL)))
+
+    for key in ("components", "incidents", "maintenances"):
+        assert key in data, f"Datadog config.json no longer has {key!r}"
+    assert data["components"], "Datadog config.json lists no components"
+    for component in data["components"]:
+        assert "name" in component and "status" in component
+    for key in ("id", "title", "resolved", "publishedDate", "componentsAffected"):
+        assert key in data["incidents"][0], f"Datadog incident no longer has {key!r}"
+
+
 def test_gcp_incidents_shape():
     data = json.loads(run(get(providers.GCPProvider.URL)))
 

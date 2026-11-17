@@ -15,7 +15,7 @@ import pytest
 from gwen_cli import providers, regions
 from gwen_cli.providers import OK, UNKNOWN
 
-from conftest import run
+from conftest import load, run
 
 # One entry per provider: an instance plus a URL fragment its fetch will request.
 CASES = [
@@ -23,6 +23,7 @@ CASES = [
     (providers.AWSProvider(), "currentevents"),
     (providers.AzureProvider(), "status/feed"),
     (providers.GCPProvider(), "incidents.json"),
+    (providers.DatadogProvider(), "datadoghq.com/config.json"),
 ]
 IDS = [provider.label for provider, _ in CASES]
 
@@ -89,6 +90,8 @@ def test_one_broken_provider_does_not_affect_the_others(stub_feeds):
             "summary.json": b'{"status":{"indicator":"none",'
             b'"description":"All Systems Operational"},'
             b'"page":{},"components":[],"incidents":[],"scheduled_maintenances":[]}',
+            "config.bypass.json": aiohttp.ClientResponseError(None, (), status=404),
+            "datadoghq.com/config.json": load("datadog_config.json"),
         }
     )
 

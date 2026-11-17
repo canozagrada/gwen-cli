@@ -10,6 +10,9 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+import aiohttp
 
 from gwen_cli import providers
 from gwen_cli.providers import MAJOR, MINOR, OK, UNKNOWN
@@ -197,3 +200,209 @@ def _statuspage_with_upcoming_maintenance(summary: bytes) -> bytes:
             if w.get(key):
                 w[key] = (parse(w[key]) + shift).isoformat()
     return json.dumps(data).encode()
+
+
+# --- Datadog -----------------------------------------------------------------
+
+
+def _http_error(status: int) -> aiohttp.ClientResponseError:
+    # `str()` of the error reads request_info.real_url, so give it one.
+    info = SimpleNamespace(real_url=providers.DatadogProvider.BYPASS)
+    return aiohttp.ClientResponseError(info, (), status=status, message="error")
+
+
+_BYPASS_ABSENT = _http_error(403)
+
+
+def _datadog_feeds(config: bytes, bypass=_BYPASS_ABSENT) -> dict:
+    # The stub matches fragments in order; keep the overlay first so the main
+    # document's fragment can never shadow it.
+    return {"config.bypass.json": bypass, "datadoghq.com/config.json": config}
+
+
+def _datadog_config(**changes) -> bytes:
+    data = load_json("datadog_config.json")
+    data.update(changes)
+    return json.dumps(data).encode()
+
+
+def test_datadog_reads_components_and_history_from_one_document(stub_feeds):
+    feeds = stub_feeds(_datadog_feeds(load("datadog_config.json")))
+
+    result = run(providers.DatadogProvider().fetch(None, days=36500))
+
+    # The recording was taken with every component operational and nothing open.
+    assert result.indicator == OK
+    assert result.supports_components and not result.degraded
+    assert result.ongoing == []
+    assert result.maintenance == []
+    assert len(result.recent) == 7
+    first = result.recent[0]
+    assert first.name == "Delayed Traces in APM"
+    assert first.status == "resolved"
+    assert first.started_at is not None and first.resolved_at is not None
+    assert first.url.startswith("https://status.datadoghq.com/")
+    assert "APM" in first.components
+    # History is in the same document: no request beyond config and overlay.
+    assert len(feeds.requested) == 2
+
+
+def test_datadog_history_honours_the_day_window(stub_feeds):
+    now = datetime.now(timezone.utc)
+    data = load_json("datadog_config.json")
+    template = data["incidents"][0]
+    data["incidents"] = [
+        {
+            **template,
+            "id": "a",
+            "title": "three days ago",
+            "publishedDate": (now - timedelta(days=3)).isoformat(),
+        },
+        {
+            **template,
+            "id": "b",
+            "title": "twenty days ago",
+            "publishedDate": (now - timedelta(days=20)).isoformat(),
+        },
+    ]
+    stub_feeds(_datadog_feeds(json.dumps(data).encode()))
+
+    week = run(providers.DatadogProvider().fetch(None, days=7))
+    none = run(providers.DatadogProvider().fetch(None, days=0))
+
+    assert [i.name for i in week.recent] == ["three days ago"]
+    assert none.recent == []
+
+
+def test_datadog_unresolved_incident_sets_the_indicator(stub_feeds):
+    data = load_json("datadog_config.json")
+    open_incident = {
+        **data["incidents"][0],
+        "id": "open",
+        "title": "Logs intake delayed",
+        "resolved": False,
+        "currentStatus": "investigating",
+        "componentsAffected": [{**data["components"][0], "status": "partial_outage"}],
+    }
+    data["incidents"] = [open_incident, *data["incidents"]]
+    stub_feeds(_datadog_feeds(json.dumps(data).encode()))
+
+    result = run(providers.DatadogProvider().fetch(None, days=0))
+
+    assert result.indicator == MAJOR
+    assert [i.name for i in result.ongoing] == ["Logs intake delayed"]
+    assert result.ongoing[0].impact == MAJOR
+    assert [(c.name, c.status) for c in result.degraded] == [("APM", "partial_outage")]
+
+
+def test_datadog_open_incident_with_no_component_impact_is_not_ok(stub_feeds):
+    data = load_json("datadog_config.json")
+    data["incidents"][0] = {
+        **data["incidents"][0],
+        "resolved": False,
+        "currentStatus": "identified",
+    }
+    stub_feeds(_datadog_feeds(json.dumps(data).encode()))
+
+    result = run(providers.DatadogProvider().fetch(None, days=0))
+
+    assert result.indicator == MINOR
+    assert not result.healthy
+
+
+def test_datadog_flattens_component_groups(stub_feeds):
+    data = load_json("datadog_config.json")
+    data["components"].append(
+        {
+            "id": "g",
+            "name": "Logs",
+            "type": "ComponentGroup",
+            "status": "operational",
+            "components": [
+                {"id": "g1", "name": "Log Intake", "type": "Component", "status": "major_outage"}
+            ],
+        }
+    )
+    stub_feeds(_datadog_feeds(json.dumps(data).encode()))
+
+    result = run(providers.DatadogProvider().fetch(None, days=0))
+
+    assert result.indicator == providers.CRITICAL
+    assert [c.name for c in result.degraded] == ["Log Intake"]
+
+
+def test_datadog_bypass_overlay_is_merged(stub_feeds):
+    """The overlay is what Datadog publishes when its normal pipeline is down."""
+    data = load_json("datadog_config.json")
+    first = data["incidents"][0]
+    overlay = {
+        "incidents": [
+            {"id": first["id"], "deletedAt": "2026-11-10T00:00:00Z"},
+            {
+                **first,
+                "id": "outage",
+                "title": "Widespread outage",
+                "resolved": False,
+                "currentStatus": "investigating",
+                "componentsAffected": [{**data["components"][1], "status": "major_outage"}],
+            },
+        ]
+    }
+    stub_feeds(_datadog_feeds(load("datadog_config.json"), json.dumps(overlay).encode()))
+
+    result = run(providers.DatadogProvider().fetch(None, days=36500))
+
+    assert result.indicator == providers.CRITICAL
+    assert [i.name for i in result.ongoing] == ["Widespread outage"]
+    assert first["title"] not in [i.name for i in result.recent]
+
+
+def test_datadog_bypass_server_error_is_not_ignored(stub_feeds):
+    stub_feeds(_datadog_feeds(load("datadog_config.json"), _http_error(500)))
+
+    result = run(providers._fetch_one(None, providers.DatadogProvider(), 0))
+
+    assert result.indicator == UNKNOWN
+    assert "500" in result.error
+
+
+def test_datadog_keeps_upcoming_and_running_maintenance(stub_feeds):
+    now = datetime.now(timezone.utc)
+
+    def window(status: str, title: str) -> dict:
+        return {
+            "id": title,
+            "title": title,
+            "currentStatus": status,
+            "startDate": (now + timedelta(hours=1)).isoformat(),
+            "completedDate": (now + timedelta(hours=3)).isoformat(),
+            "componentsAffected": [],
+            "timeline": [],
+        }
+
+    payload = _datadog_config(
+        maintenances=[
+            window("scheduled", "upcoming"),
+            window("in_progress", "running"),
+            window("completed", "done"),
+            window("canceled", "dropped"),
+        ]
+    )
+    stub_feeds(_datadog_feeds(payload))
+
+    result = run(providers.DatadogProvider().fetch(None, days=0))
+
+    assert [(m.name, m.in_progress) for m in result.maintenance] == [
+        ("upcoming", False),
+        ("running", True),
+    ]
+    assert result.maintenance[0].scheduled_until is not None
+
+
+def test_datadog_config_without_components_is_unusable(stub_feeds):
+    stub_feeds(_datadog_feeds(_datadog_config(components=[])))
+
+    result = run(providers._fetch_one(None, providers.DatadogProvider(), 0))
+
+    assert result.indicator == UNKNOWN
+    assert "could not read feed" in result.error

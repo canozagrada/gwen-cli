@@ -107,19 +107,21 @@ GWEN is a terminal tool: it checks when you run it and never runs in the backgro
 
 ## What each provider actually publishes
 
-Providers expose different things. GWEN prints `--` where a provider publishes nothing, rather than a `0` that would read as "checked, nothing found".
+Providers expose different things. GWEN prints `--` where a provider publishes nothing, rather than a `0` that would read as "checked, nothing found". A provider whose feed could not be read this run shows `?` in those columns, with the reason printed under the table.
 
-| Provider   | Source        | Incident history | Maintenance | Components |
-|------------|---------------|------------------|-------------|------------|
-| Cloudflare | Statuspage v2 | yes              | yes         | yes        |
-| GitHub     | Statuspage v2 | yes              | yes         | yes        |
-| Datadog    | Statuspage v2 | yes              | yes         | yes        |
-| Atlassian  | Statuspage v2 | yes              | yes         | --         |
-| AWS        | AWS Health    | yes              | --          | --         |
-| GCP        | Cloud Status  | yes              | --          | --         |
-| Azure      | Status RSS    | --               | --          | --         |
+| Provider   | Source              | Incident history | Maintenance | Components |
+|------------|---------------------|------------------|-------------|------------|
+| Cloudflare | Statuspage v2       | yes              | yes         | yes        |
+| GitHub     | Statuspage v2       | yes              | yes         | yes        |
+| Atlassian  | Statuspage v2       | yes              | yes         | --         |
+| Datadog    | Datadog status page | yes              | yes         | yes        |
+| AWS        | AWS Health          | yes              | --          | --         |
+| GCP        | Cloud Status        | yes              | --          | --         |
+| Azure      | Status RSS          | --               | --          | --         |
 
 Azure's RSS feed carries only currently-active issues; there is no public history or maintenance calendar behind it. Atlassian runs Statuspage but publishes no component list, so component health is detected per response rather than assumed from the platform.
+
+Datadog moved off Atlassian Statuspage in 2026, and its old `/api/v2/*.json` endpoints now return 403. GWEN reads the `config.json` that Datadog's own status page loads, plus the `config.bypass.json` overlay Datadog publishes while its normal pipeline is down. That page has no overall status field, so GWEN derives Datadog's status from component statuses and open incidents.
 
 ## Design
 
